@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('Rejestracja — Analizator Deszczówki') }}{% endblock %}
+
+{% block content %}
+<div class="ad-auth-container" style="min-height: calc(100vh - 180px); display: flex; align-items: center; justify-content: center; padding: var(--space-4) 0;">
+    <div class="ad-auth-card ad-stagger-1" style="width: 100%; max-width: 440px; background: var(--color-surface, #393E44); border: 1px solid var(--color-border, #2E3A4F); border-radius: var(--radius-lg, 12px); box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4); backdrop-filter: blur(12px); padding: var(--space-6) var(--space-5);">
+
+        <div style="text-align: center; margin-bottom: var(--space-5);">
+
+            <h2 style="font-size: var(--font-size-heading-3, 1.5rem); font-weight: var(--font-weight-bold, 700); color: var(--color-text-primary, #D4F4FF); margin-bottom: var(--space-1);">
+                {{ t('Utwórz konto') }}
+            </h2>
+            <p style="font-size: var(--font-size-sm, 0.875rem); color: var(--color-text-secondary, #B0BEC5);">
+                {{ t('Konto pozwala przeglądać dane z Twojej stacji pomiarowej.') }}
+            </p>
+        </div>
+
+        <div class="ad-alert ad-alert--info" role="note" style="margin-bottom: var(--space-4);">
+            <span class="ad-alert-icon" aria-hidden="true">i</span>
+            <div class="ad-alert-content">
+                <div class="ad-alert-title">{{ t('Zanim zaczniesz') }}</div>
+                <p class="ad-alert-message">{{ t('Samo konto nie uruchamia pomiarów. Potrzebujesz fizycznej stacji AD — ESP32 i Raspberry Pi z przygotowanym oprogramowaniem. Po rejestracji połączysz ją z kontem.') }}</p>
+            </div>
+        </div>
+
+        <form method="POST" action="{{ url_for('auth.register') }}" class="ad-form">
+            <input type="hidden" name="csrf_token" value="{{ session.get('_csrf_token', '') }}">
+            <div class="ad-form-group" style="margin-bottom: var(--space-3);">
+                <label for="username" class="ad-label">{{ t('Nazwa użytkownika') }}</label>
+                <input type="text" class="ad-input" id="username" name="username" required
+                       placeholder="np. jankowalski" autocomplete="username" autofocus>
+            </div>
+
+            <div class="ad-form-group" style="margin-bottom: var(--space-3);">
+                <label for="email" class="ad-label">{{ t('Adres e-mail') }}</label>
+                <input type="email" class="ad-input" id="email" name="email" required
+                       placeholder="jan.kowalski@example.com" autocomplete="email">
+            </div>
+
+            <div class="ad-form-group" style="margin-bottom: var(--space-3);">
+                <label for="password" class="ad-label">{{ t('Hasło (min. 12 znaków)') }}</label>
+                <input type="password" class="ad-input" id="password" name="password" required
+                       placeholder="••••••••" autocomplete="new-password">
+            </div>
+
+            <div class="ad-form-group" style="margin-bottom: var(--space-5);">
+                <label for="confirm_password" class="ad-label">{{ t('Powtórz hasło') }}</label>
+                <input type="password" class="ad-input" id="confirm_password" name="confirm_password" required
+                       placeholder="••••••••" autocomplete="new-password">
+            </div>
+
+            <button type="submit" class="ad-btn ad-btn-primary" style="width: 100%; padding: 12px; font-size: var(--font-size-body, 1rem);">
+                {{ t('Zarejestruj konto') }}
+            </button>
+        </form>
+
+        <div style="text-align: center; margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--ad-border-light, rgba(255, 255, 255, 0.06)); font-size: var(--font-size-sm, 0.875rem); color: var(--color-text-secondary, #B0BEC5);">
+            {{ t('Masz już konto?') }}
+            <a href="{{ url_for('auth.login') }}" style="color: var(--color-accent, #E49D22); font-weight: var(--font-weight-semibold, 600); margin-left: 4px;">
+                {{ t('Zaloguj się') }}
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,492 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('Panel administratora') }}{% endblock %}
+
+{% block content %}
+<div class="ad-page">
+    <div class="ad-page-header">
+        <div class="ad-page-header-content">
+            <h1 class="ad-page-title">{{ t('Panel administratora') }}</h1>
+            <p class="ad-page-subtitle">{{ t('Globalne zarządzanie użytkownikami i urządzeniami') }}</p>
+        </div>
+    </div>
+
+    <section class="ad-section" aria-label="{{ t('Użytkownicy') }}" id="admin-users-section">
+        <div class="ad-section-header">
+            <h2 class="ad-section-title">{{ t('Użytkownicy') }}</h2>
+        </div>
+        <div class="ad-card">
+            <div style="padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--color-border, #E2E8F0);">
+                <input type="text" id="admin-users-search" placeholder="{{ t('Wyszukaj użytkownika...') }}"
+                       style="width: 100%; max-width: 320px; padding: var(--space-2) var(--space-3); border: 1px solid var(--color-border, #E2E8F0); border-radius: var(--radius, 6px); font-size: var(--font-size-sm, 0.875rem);">
+            </div>
+            <div class="ad-table-wrapper">
+                <table class="ad-table" id="admin-users-table">
+                    <thead>
+                        <tr>
+                            <th>{{ t('Adres e-mail') }}</th>
+                            <th>{{ t('Imię') }}</th>
+                            <th>{{ t('Nazwisko') }}</th>
+                            <th>{{ t('Telefon') }}</th>
+                            <th>{{ t('Rola') }}</th>
+                            <th>{{ t('Aktywny') }}</th>
+                            <th style="text-align: right;">{{ t('Akcje') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-users-body">
+                        {% for user in users %}
+                        <tr data-user-id="{{ user.id }}">
+                            <td class="admin-user-email">{{ user.email }}</td>
+                            <td>{{ user.first_name }}</td>
+                            <td>{{ user.last_name }}</td>
+                            <td>{{ user.phone or '-' }}</td>
+                            <td>
+                                <span class="ad-badge {% if user.is_admin %}ad-badge--success{% else %}ad-badge--neutral{% endif %}">
+                                    {{ t('Administrator') if user.is_admin else t('Użytkownik') }}
+                                </span>
+                            </td>
+                            <td>
+                                <button type="button" class="ad-btn ad-btn-ghost ad-btn-sm admin-user-toggle"
+                                        data-user-id="{{ user.id }}"
+                                        data-active="{{ 'true' if user.is_active else 'false' }}">
+                                    {{ t('Dezaktywuj') if user.is_active else t('Aktywuj') }}
+                                </button>
+                            </td>
+                            <td style="text-align: right;">
+                                <button type="button" class="ad-btn ad-btn-ghost ad-btn-sm admin-show-user-devices"
+                                        data-user-id="{{ user.id }}"
+                                        data-user-name="{{ user.email }}">{{ t('Urządzenia') }}</button>
+                                {% if not user.is_admin %}
+                                <button type="button" class="ad-btn ad-btn-ghost ad-btn-sm admin-user-delete"
+                                        data-user-id="{{ user.id }}"
+                                        data-user-name="{{ user.email }}">{{ t('Usuń') }}</button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% if users|length == 0 %}
+        <p class="ad-text-secondary">{{ t('Brak użytkowników.') }}</p>
+        {% endif %}
+    </section>
+
+    <section class="ad-section" aria-label="{{ t('Urządzenia') }}" id="admin-devices-section">
+        <div class="ad-section-header">
+            <h2 class="ad-section-title">{{ t('Urządzenia') }}</h2>
+        </div>
+        <div class="ad-card">
+            <div style="padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--color-border, #E2E8F0); display: flex; gap: var(--space-3); align-items: center;">
+                <input type="text" id="admin-devices-search" placeholder="{{ t('Wyszukaj urządzenie...') }}"
+                       style="width: 100%; max-width: 320px; padding: var(--space-2) var(--space-3); border: 1px solid var(--color-border, #E2E8F0); border-radius: var(--radius, 6px); font-size: var(--font-size-sm, 0.875rem);">
+            </div>
+            <div class="ad-table-wrapper">
+                <table class="ad-table" id="admin-devices-table">
+                    <thead>
+                        <tr>
+                            <th>{{ t('Identyfikator urządzenia') }}</th>
+                            <th>{{ t('Nazwa urządzenia') }}</th>
+                            <th>{{ t('Właściciel') }}</th>
+                            <th>{{ t('Status') }}</th>
+                            <th>{{ t('Ostatnia aktywność') }}</th>
+                            <th style="text-align: right;">{{ t('Akcje') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-devices-body">
+                        {% for device in devices %}
+                        <tr data-device-id="{{ device.device_id }}">
+                            <td class="admin-device-id">{{ device.device_id }}</td>
+                            <td>
+                                <span class="admin-device-name" data-device-id="{{ device.device_id }}">{{ device.name }}</span>
+                                <input type="text" class="admin-device-name-input" data-device-id="{{ device.device_id }}"
+                                       value="{{ device.name }}" style="display: none;">
+                                <button type="button" class="ad-btn ad-btn-ghost ad-btn-sm admin-device-edit"
+                                        data-device-id="{{ device.device_id }}">{{ t('Edytuj') }}</button>
+                                <button type="button" class="ad-btn ad-btn-ghost ad-btn-sm admin-device-save"
+                                        data-device-id="{{ device.device_id }}" style="display: none;">{{ t('Zapisz') }}</button>
+                                <button type="button" class="ad-btn ad-btn-ghost ad-btn-sm admin-device-cancel"
+                                        data-device-id="{{ device.device_id }}" style="display: none;">{{ t('Anuluj') }}</button>
+                            </td>
+                            <td>
+                                {% if device.user_id is not none %}
+                                    {{ device.user_email or ('użytkownik #' ~ device.user_id) }}
+                                {% else %}
+                                    <span class="ad-text-secondary">{{ t('Brak właściciela') }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="ad-badge ad-badge--{{ 'success' if device.status == 'online' else 'neutral' }}">
+                                    {{ device.status or '—' }}
+                                </span>
+                            </td>
+                            <td class="ad-text-secondary">{{ device.last_seen or 'Nigdy' }}</td>
+                            <td style="text-align: right;">
+                                <button type="button" class="ad-btn ad-btn-ghost ad-btn-sm admin-device-measurements"
+                                        data-device-id="{{ device.device_id }}"
+                                        data-device-name="{{ device.name }}">{{ t('Pomiary') }}</button>
+                                <button type="button" class="ad-btn ad-btn-ghost ad-btn-sm admin-device-delete"
+                                        data-device-id="{{ device.device_id }}"
+                                        data-device-name="{{ device.name }}">{{ t('Usuń') }}</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% if devices|length == 0 %}
+        <p class="ad-text-secondary">{{ t('Brak urządzeń.') }}</p>
+        {% endif %}
+    </section>
+
+    <section class="ad-section" id="admin-measurements-section" style="display: none;">
+        <div class="ad-section-header">
+            <button type="button" class="ad-btn ad-btn-ghost ad-btn-sm admin-back-to-devices" style="margin-right: var(--space-3);">
+                ← {{ t('Powrót do listy urządzeń') }}
+            </button>
+            <h2 class="ad-section-title" id="admin-measurements-title">{{ t('Pomiary') }}</h2>
+            <p class="ad-page-subtitle" id="admin-measurements-subtitle"></p>
+        </div>
+        <div class="ad-card">
+            <div style="padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--color-border, #E2E8F0); display: flex; gap: var(--space-3); align-items: center;">
+                <input type="text" id="admin-measurements-search" placeholder="{{ t('Wyszukaj w pomiarach...') }}"
+                       style="width: 100%; max-width: 320px; padding: var(--space-2) var(--space-3); border: 1px solid var(--color-border, #E2E8F0); border-radius: var(--radius, 6px); font-size: var(--font-size-sm, 0.875rem);">
+            </div>
+            <div class="ad-table-wrapper" id="admin-measurements-wrapper">
+                <table class="ad-table" id="admin-measurements-table">
+                    <thead>
+                        <tr>
+                            <th>{{ t('Czas') }}</th>
+                            <th>pH</th>
+                            <th>EC (µS/cm)</th>
+                            <th>Temperatura (°C)</th>
+                            <th>Wilgotność (%)</th>
+                            <th>{{ t('Opad w ostatniej godzinie') }} (mm)</th>
+                            <th>{{ t('Opad łącznie') }} (mm)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-measurements-body">
+
+                    </tbody>
+                </table>
+                <div id="admin-measurements-empty" style="padding: var(--space-6); text-align: center; color: var(--color-text-secondary, #B0BEC5); display: none;">
+                    {{ t('Brak pomiarów.') }}
+                </div>
+                <div id="admin-measurements-error" style="padding: var(--space-5); color: var(--color-error, #D32F2F); display: none;"></div>
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const usersBody = document.getElementById('admin-users-body');
+    const devicesBody = document.getElementById('admin-devices-body');
+    const usersSection = document.getElementById('admin-users-section');
+    const devicesSection = document.getElementById('admin-devices-section');
+    const measurementsSection = document.getElementById('admin-measurements-section');
+    const measurementsBody = document.getElementById('admin-measurements-body');
+    const measurementsTitle = document.getElementById('admin-measurements-title');
+    const measurementsSubtitle = document.getElementById('admin-measurements-subtitle');
+    const measurementsEmpty = document.getElementById('admin-measurements-empty');
+    const measurementsError = document.getElementById('admin-measurements-error');
+    const measurementsWrapper = document.getElementById('admin-measurements-wrapper');
+
+    function showToast(msg, type) {
+        if (window.AD && window.AD.Toast) {
+            window.AD.Toast.show(msg, type);
+        } else {
+
+            console.log(`[${type || 'info'}] ${msg}`);
+        }
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function escapeCss(id) {
+        return CSS.escape ? CSS.escape(id) : String(id).replace(/[!"#$%&'()*+,.\/:;<=>?@[\\\]^`{|}~]/g, '\\$&');
+    }
+
+    function filterTable(searchInputId, tableBodyId) {
+        const input = document.getElementById(searchInputId);
+        const body = document.getElementById(tableBodyId);
+        if (!input || !body) return;
+        const term = input.value.toLowerCase();
+        for (const row of body.rows) {
+            let match = false;
+            for (const cell of row.cells) {
+                if (cell.textContent.toLowerCase().includes(term)) { match = true; break; }
+            }
+            row.style.display = match ? '' : 'none';
+        }
+    }
+
+    document.getElementById('admin-users-search')?.addEventListener('input', () => filterTable('admin-users-search', 'admin-users-body'));
+    document.getElementById('admin-devices-search')?.addEventListener('input', () => filterTable('admin-devices-search', 'admin-devices-body'));
+    document.getElementById('admin-measurements-search')?.addEventListener('input', () => filterTable('admin-measurements-search', 'admin-measurements-body'));
+
+    usersBody.addEventListener('click', async function(event) {
+        const deleteBtn = event.target.closest('.admin-user-delete');
+        if (deleteBtn) {
+            const userId = deleteBtn.dataset.userId;
+            const email = deleteBtn.dataset.userName;
+            if (!window.confirm({{ t('Usunąć konto ') | tojson }} + email + {{ t('? Urządzenia zostaną odłączone i zachowane.') | tojson }})) return;
+            deleteBtn.disabled = true;
+            try {
+                const response = await fetch(`/admin/api/users/${userId}`, {method: 'DELETE', headers: {Accept: 'application/json'}});
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(data.error || 'HTTP ' + response.status);
+                deleteBtn.closest('tr')?.remove();
+                showToast({{ t('Konto użytkownika usunięte.') | tojson }}, 'success');
+            } catch (error) {
+                deleteBtn.disabled = false;
+                showToast({{ t('Nie udało się usunąć konta: ') | tojson }} + error.message, 'error');
+            }
+            return;
+        }
+        const btn = event.target.closest('.admin-user-toggle');
+        if (!btn) return;
+        const userId = btn.dataset.userId;
+        const currentlyActive = btn.dataset.active === 'true';
+        const newActive = !currentlyActive;
+        btn.disabled = true;
+        try {
+            const response = await fetch(`/admin/api/users/${userId}/active`, {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+                body: JSON.stringify({is_active: newActive}),
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.error || 'HTTP ' + response.status);
+            btn.dataset.active = String(newActive);
+            btn.textContent = newActive ? {{ t('Dezaktywuj') | tojson }} : {{ t('Aktywuj') | tojson }};
+            showToast(newActive ? {{ t('Konto aktywowane.') | tojson }} : {{ t('Konto zdezaktywowane.') | tojson }}, 'success');
+        } catch (error) {
+            btn.disabled = false;
+            showToast({{ t('Nie udało się zmienić stanu konta: ') | tojson }} + error.message, 'error');
+        }
+    });
+
+    usersBody.addEventListener('click', async function(event) {
+        const btn = event.target.closest('.admin-show-user-devices');
+        if (!btn) return;
+        const userId = btn.dataset.userId;
+        const userName = btn.dataset.userName;
+        btn.disabled = true;
+        try {
+            const response = await fetch(`/admin/api/users/${userId}/devices`, {headers: {Accept: 'application/json'}});
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.error || 'HTTP ' + response.status);
+            if (!Array.isArray(data)) throw new Error(data.error || 'Nieprawidłowa odpowiedź serwera');
+            const devices = data;
+            let html = `<h3 style="margin: var(--space-4) 0 var(--space-2);">{{ t('Urządzenia') }} — {{ t('użytkownika') }} ${escapeHtml(userName)}</h3>`;
+            if (!devices.length) {
+                html += `<p class="ad-text-secondary">{{ t('Brak urządzeń.') }}</p>`;
+            } else {
+                html += `<table class="ad-table"><thead><tr><th>{{ t('Identyfikator urządzenia') }}</th><th>{{ t('Nazwa urządzenia') }}</th><th>{{ t('Status') }}</th></tr></thead><tbody>`;
+                for (const d of devices) {
+                    const status = d.status || '—';
+                    html += `<tr><td>${escapeHtml(d.device_id)}</td><td>${escapeHtml(d.name)}</td><td><span class="ad-badge ad-badge--${status === 'online' ? 'success' : 'neutral'}">${escapeHtml(status)}</span></td></tr>`;
+                }
+                html += `</tbody></table>`;
+            }
+            html += `<button type="button" class="ad-btn ad-btn-ghost ad-btn-sm admin-close-user-devices">{{ t('Zamknij') }}</button>`;
+            const wrapper = document.createElement('div');
+            wrapper.className = 'ad-card';
+            wrapper.style.marginTop = 'var(--space-4)';
+            wrapper.style.padding = 'var(--space-4)';
+            wrapper.innerHTML = html;
+            const prev = usersSection.querySelector('.admin-user-devices-panel');
+            if (prev) prev.remove();
+            wrapper.classList.add('admin-user-devices-panel');
+            usersSection.querySelector('.ad-section-header').after(wrapper);
+            wrapper.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+            btn.disabled = false;
+        } catch (error) {
+            btn.disabled = false;
+            showToast({{ t('Nie udało się pobrać urządzeń użytkownika: ') | tojson }} + error.message, 'error');
+        }
+    });
+
+    usersSection.addEventListener('click', function(event) {
+        const closeBtn = event.target.closest('.admin-close-user-devices');
+        if (closeBtn) {
+            const panel = usersSection.querySelector('.admin-user-devices-panel');
+            if (panel) panel.remove();
+        }
+    });
+
+    measurementsSection.addEventListener('click', function(event) {
+        if (!event.target.closest('.admin-back-to-devices')) return;
+        measurementsSection.style.display = 'none';
+        devicesSection.style.display = '';
+        usersSection.style.display = '';
+    });
+
+    devicesBody.addEventListener('click', function(event) {
+        const editBtn = event.target.closest('.admin-device-edit');
+        const saveBtn = event.target.closest('.admin-device-save');
+        const cancelBtn = event.target.closest('.admin-device-cancel');
+        const measBtn = event.target.closest('.admin-device-measurements');
+        const deleteBtn = event.target.closest('.admin-device-delete');
+        if (editBtn) {
+            const deviceId = editBtn.dataset.deviceId;
+            const row = devicesBody.querySelector(`tr[data-device-id="${escapeCss(deviceId)}"]`);
+            const nameSpan = row.querySelector('.admin-device-name');
+            const nameInput = row.querySelector('.admin-device-name-input');
+            nameSpan.style.display = 'none';
+            nameInput.style.display = '';
+            nameInput.focus();
+            editBtn.style.display = 'none';
+            row.querySelector('.admin-device-save').style.display = '';
+            row.querySelector('.admin-device-cancel').style.display = '';
+            return;
+        }
+        if (cancelBtn) {
+            const deviceId = cancelBtn.dataset.deviceId;
+            const row = devicesBody.querySelector(`tr[data-device-id="${escapeCss(deviceId)}"]`);
+            const nameSpan = row.querySelector('.admin-device-name');
+            const nameInput = row.querySelector('.admin-device-name-input');
+            nameInput.value = nameSpan.textContent;
+            nameSpan.style.display = '';
+            nameInput.style.display = 'none';
+            cancelBtn.style.display = 'none';
+            saveBtn.style.display = 'none';
+            editBtn.style.display = '';
+            return;
+        }
+        if (saveBtn) {
+            const deviceId = saveBtn.dataset.deviceId;
+            const row = devicesBody.querySelector(`tr[data-device-id="${escapeCss(deviceId)}"]`);
+            const nameInput = row.querySelector('.admin-device-name-input');
+            const nameSpan = row.querySelector('.admin-device-name');
+            saveDeviceName(deviceId, nameInput.value, row);
+            return;
+        }
+        if (measBtn) {
+            const deviceId = measBtn.dataset.deviceId;
+            const deviceName = measBtn.dataset.deviceName;
+            loadMeasurements(deviceId, deviceName);
+            return;
+        }
+        if (deleteBtn) {
+            const deviceId = deleteBtn.dataset.deviceId;
+            const deviceName = deleteBtn.dataset.deviceName;
+            if (!window.confirm({{ t('Czy na pewno usunąć ') | tojson }} + deviceName + {{ t('?') | tojson }})) return;
+            deleteDevice(deviceId, deviceName, deleteBtn);
+            return;
+        }
+    });
+
+    devicesBody.addEventListener('keydown', function(event) {
+        if (event.key === 'Enter') {
+            const saveBtn = event.target.closest('.admin-device-save');
+            if (saveBtn) saveBtn.click();
+        }
+        if (event.key === 'Escape') {
+            const cancelBtn = event.target.closest('.admin-device-cancel');
+            if (cancelBtn) cancelBtn.click();
+        }
+    });
+
+    async function saveDeviceName(deviceId, newName, row) {
+        const nameInput = row.querySelector('.admin-device-name-input');
+        const nameSpan = row.querySelector('.admin-device-name');
+        const editBtn = row.querySelector('.admin-device-edit');
+        const saveBtn = row.querySelector('.admin-device-save');
+        const cancelBtn = row.querySelector('.admin-device-cancel');
+        saveBtn.disabled = true;
+        try {
+            const response = await fetch(`/admin/api/devices/${encodeURIComponent(deviceId)}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+                body: JSON.stringify({name: newName}),
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.error || 'HTTP ' + response.status);
+            nameSpan.textContent = newName;
+            nameSpan.style.display = '';
+            nameInput.style.display = 'none';
+            saveBtn.style.display = 'none';
+            cancelBtn.style.display = 'none';
+            editBtn.style.display = '';
+            showToast({{ t('Urządzenie zaktualizowane.') | tojson }}, 'success');
+        } catch (error) {
+            saveBtn.disabled = false;
+            showToast({{ t('Nie udało się zaktualizować urządzenia: ') | tojson }} + error.message, 'error');
+        }
+    }
+
+    async function loadMeasurements(deviceId, deviceName) {
+        devicesSection.style.display = 'none';
+        usersSection.style.display = 'none';
+        measurementsSection.style.display = '';
+        measurementsTitle.textContent = {{ t('Pomiary') | tojson }} + ' — ' + escapeHtml(deviceName);
+        measurementsSubtitle.textContent = deviceId;
+        measurementsBody.innerHTML = '';
+        measurementsEmpty.style.display = 'none';
+        measurementsError.style.display = 'none';
+        measurementsWrapper.style.display = '';
+
+        try {
+            const response = await fetch(`/admin/api/devices/${encodeURIComponent(deviceId)}/measurements`, {headers: {Accept: 'application/json'}});
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.error || 'HTTP ' + response.status);
+            const measurements = data || [];
+            if (!measurements.length) {
+                measurementsEmpty.style.display = '';
+                measurementsWrapper.style.display = 'none';
+                return;
+            }
+            for (const m of measurements) {
+                const tr = document.createElement('tr');
+                tr.className = 'ad-table-row';
+                const time = m.measurement_time ? new Date(m.measurement_time).toLocaleString() : '—';
+                const rainHour = m.rainfall_1h_mm;
+                const rainTotal = m.rainfall_mm;
+                tr.innerHTML = `
+                    <td class="ad-text-secondary">${escapeHtml(time)}</td>
+                    <td>${m.water_quality_ph !== null && m.water_quality_ph !== undefined ? m.water_quality_ph.toFixed(2) : '—'}</td>
+                    <td>${m.ec !== null && m.ec !== undefined ? m.ec.toFixed(2) : '—'}</td>
+                    <td>${m.temperature !== null && m.temperature !== undefined ? m.temperature.toFixed(1) : '—'}</td>
+                    <td>${m.humidity !== null && m.humidity !== undefined ? m.humidity.toFixed(1) : '—'}</td>
+                    <td>${rainHour !== null && rainHour !== undefined ? Number(rainHour).toFixed(1) : '—'}</td>
+                    <td>${rainTotal !== null && rainTotal !== undefined ? Number(rainTotal).toFixed(1) : '—'}</td>
+                `;
+                measurementsBody.appendChild(tr);
+            }
+        } catch (error) {
+            measurementsError.textContent = {{ t('Nie udało się pobrać pomiarów: ') | tojson }} + error.message;
+            measurementsError.style.display = '';
+        }
+    }
+
+    async function deleteDevice(deviceId, deviceName, button) {
+        button.disabled = true;
+        try {
+            const response = await fetch(`/admin/api/devices/${encodeURIComponent(deviceId)}`, {
+                method: 'DELETE',
+                headers: {Accept: 'application/json'},
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.error || 'HTTP ' + response.status);
+            const row = button.closest('tr');
+            if (row) row.remove();
+            showToast({{ t('Urządzenie usunięte.') | tojson }}, 'success');
+        } catch (error) {
+            button.disabled = false;
+            showToast({{ t('Nie udało się usunąć urządzenia: ') | tojson }} + error.message, 'error');
+        }
+    }
+});
+</script>
+{% endblock %}

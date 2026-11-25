@@ -1,0 +1,437 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('Pomiary sensoryczne') }}{% endblock %}
+
+{% block content %}
+<div class="ad-page">
+
+    <div class="ad-page-header">
+        <div class="ad-page-header-content">
+            <h1 class="ad-page-title">{{ t('Pomiary sensoryczne') }}</h1>
+            <p class="ad-page-subtitle">{{ t('Bieżące parametry fizykochemiczne wody deszczowej') }}</p>
+        </div>
+        <div class="ad-page-header-actions">
+            <button class="ad-btn ad-btn-ghost ad-btn-sm" id="btn-refresh" title="{{ t('Odśwież pomiary') }}">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <polyline points="1 20 1 14 7 14"></polyline>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                </svg>
+                <span>{{ t('Odśwież') }}</span>
+            </button>
+            <button class="ad-btn ad-btn-ghost ad-btn-sm" id="btn-enable-push" title="{{ t('Włącz powiadomienia push') }}">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+                <span id="btn-enable-push-label">{{ t('Włącz powiadomienia push') }}</span>
+            </button>
+        </div>
+        <div class="ad-page-header-accent"></div>
+    </div>
+
+    <div class="ad-filter-bar ad-stagger-1" style="margin-bottom: var(--space-4);">
+        <div class="ad-form-group" style="margin-bottom: 0; min-width: 280px;">
+            <label for="device-select" class="ad-label">{{ t('Wybrane urządzenie pomiarowe') }}</label>
+            <div class="ad-select-wrapper">
+                <select class="ad-select" id="device-select">
+                    <option value="">{{ t('Wybierz urządzenie...') }}</option>
+                </select>
+            </div>
+        </div>
+        <div class="ad-connection-status-pill" id="measurement-meta" style="display: none; align-self: flex-end; padding-bottom: 6px;">
+            <span class="ad-status-dot ad-status-dot--online"></span>
+            <span class="ad-text-secondary ad-text-sm" id="last-measurement-time">{{ t('Ostatni pomiar: --') }}</span>
+        </div>
+
+    </div>
+
+    <div id="measurements-loading" style="display: none;">
+        {% include 'components/states/loading.html' %}
+    </div>
+
+    <div id="measurements-empty" style="display: none;">
+        {% include 'components/states/empty.html' %}
+    </div>
+
+    <div id="measurements-error" style="display: none;">
+        {% set message = t('Wystąpił błąd podczas ładowania danych pomiarowych') %}
+        {% include 'components/states/error.html' %}
+    </div>
+
+    <div id="measurements-content" style="display: none;">
+        <div class="ad-measurements-overview">
+                <div class="ad-measurements-grid ad-measurements-grid--overview">
+
+                    <div class="ad-metric-card ad-stagger-3">
+                        <div class="ad-metric-card-header">
+                            <span class="ad-metric-label">{{ t('Kwasowość pH') }}</span>
+                            <span class="ad-badge" id="water-ph-badge">--</span>
+                        </div>
+                        <div class="ad-metric-value" id="water-ph">--</div>
+                        <span class="ad-metric-unit">{{ t('skala pH (norma 6.5 - 8.5)') }}</span>
+                    </div>
+
+                    <div class="ad-metric-card ad-stagger-4">
+                        <div class="ad-metric-card-header">
+                            <span class="ad-metric-label">{{ t('Mętność (NTU)') }}</span>
+                            <span class="ad-badge" id="water-turbidity-badge">--</span>
+                        </div>
+                        <div class="ad-metric-value" id="water-turbidity">--</div>
+                        <span class="ad-metric-unit">NTU</span>
+                    </div>
+
+                    <div class="ad-card ad-card--static">
+                        <div class="ad-card-header">
+                            <span class="ad-metric-label">{{ t('Przewodność (EC)') }}</span>
+                            <span class="ad-badge" id="water-ec-badge">--</span>
+                        </div>
+                        <div class="ad-metric-value" id="water-ec">--</div>
+                        <div class="ad-text-secondary ad-text-sm">µS/cm</div>
+                    </div>
+
+                    <div class="ad-metric-card ad-stagger-5">
+                        <div class="ad-metric-card-header">
+                            <span class="ad-metric-label">{{ t('Temperatura') }}</span>
+                            <span class="ad-badge" id="water-temp-badge">--</span>
+                        </div>
+                        <div class="ad-metric-value" id="water-temp">--</div>
+                        <span class="ad-metric-unit">°C</span>
+                    </div>
+                </div>
+<br>
+<br>
+
+                <div class="ad-card ad-measurements-note">
+                    <div>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent, #E49D22)" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="16" x2="12" y2="12"></line>
+                            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                        </svg>
+                        <span class="ad-text-sm" id="water-quality-summary">{{ t('Ocena przydatności wymaga kalibracji czujników i uwzględnienia lokalnego zastosowania.') }}</span>
+                    </div>
+                </div>
+        </div>
+        <br>
+        <br>
+
+        <section class="ad-card ad-measurement-history" aria-labelledby="measurement-history-title">
+                <div class="ad-card-header">
+                    <div>
+                        <h2 class="ad-card-title" id="measurement-history-title">{{ t('Historia pomiarów') }}</h2>
+                        <p class="ad-card-subtitle">{{ t('Najnowsze odczyty zapisane dla wybranego urządzenia.') }}</p>
+                    </div>
+                </div>
+                <div class="ad-table-wrapper">
+                    <table class="ad-table">
+                        <thead><tr><th>{{ t('Czas') }}</th><th>pH</th><th>{{ t('Mętność (NTU)') }}</th><th>EC (µS/cm)</th><th>{{ t('Temperatura (°C)') }}</th><th></th></tr></thead>
+                        <tbody id="measurement-history-body"><tr><td colspan="6">{{ t('Ładowanie…') }}</td></tr></tbody>
+                    </table>
+                </div>
+        </section>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    initMeasurementsPage();
+});
+
+function initMeasurementsPage() {
+    const deviceSelect = document.getElementById('device-select');
+    const loadingContainer = document.getElementById('measurements-loading');
+    const emptyContainer = document.getElementById('measurements-empty');
+    const contentContainer = document.getElementById('measurements-content');
+    const errorContainer = document.getElementById('measurements-error');
+    const refreshBtn = document.getElementById('btn-refresh');
+
+    const waterPhEl = document.getElementById('water-ph');
+    const waterPhBadge = document.getElementById('water-ph-badge');
+    const waterTurbidityEl = document.getElementById('water-turbidity');
+    const waterTurbidityBadge = document.getElementById('water-turbidity-badge');
+    const waterEcEl = document.getElementById('water-ec');
+    const waterEcBadge = document.getElementById('water-ec-badge');
+    const waterTempEl = document.getElementById('water-temp');
+    const waterTempBadge = document.getElementById('water-temp-badge');
+    const measurementMeta = document.getElementById('measurement-meta');
+    const lastMeasurementTime = document.getElementById('last-measurement-time');
+    const waterQualitySummary = document.getElementById('water-quality-summary');
+
+    function showLoading() {
+        loadingContainer.style.display = 'block';
+        emptyContainer.style.display = 'none';
+        contentContainer.style.display = 'none';
+        errorContainer.style.display = 'none';
+    }
+
+    function showEmpty(msg) {
+        loadingContainer.style.display = 'none';
+        emptyContainer.style.display = 'block';
+        contentContainer.style.display = 'none';
+        errorContainer.style.display = 'none';
+    }
+
+    function showContent() {
+        loadingContainer.style.display = 'none';
+        emptyContainer.style.display = 'none';
+        contentContainer.style.display = 'block';
+        errorContainer.style.display = 'none';
+    }
+
+    function showError(message) {
+        loadingContainer.style.display = 'none';
+        emptyContainer.style.display = 'none';
+        contentContainer.style.display = 'none';
+        errorContainer.style.display = 'block';
+        const errorText = errorContainer.querySelector('.ad-empty-state-text');
+        if (errorText && message) errorText.textContent = message;
+    }
+
+    function fetchDevices() {
+        showLoading();
+        fetch('/devices/api/list', { headers: { Accept: 'application/json' } })
+            .then(res => {
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                return res.json();
+            })
+            .then(data => {
+                const devices = data.devices || [];
+                deviceSelect.innerHTML = '<option value="">' + window.AD.t('Wybierz urządzenie...') + '</option>';
+                devices.forEach(d => {
+                    const opt = document.createElement('option');
+                    opt.value = d.device_id || d.id;
+                    opt.textContent = (d.name || window.AD.t('Urządzenie') + ' ' + d.id) + ' (' + (d.location || window.AD.t('Brak lokalizacji')) + ')';
+                    deviceSelect.appendChild(opt);
+                });
+
+                if (devices.length > 0) {
+                    deviceSelect.value = devices[0].device_id || devices[0].id;
+                    loadDeviceData(deviceSelect.value);
+                } else {
+                    showEmpty();
+                }
+            })
+            .catch(err => {
+                showError(window.AD.t('Nie udało się pobrać listy urządzeń: ') + err.message);
+            });
+    }
+
+    function loadDeviceData(deviceId) {
+        if (!deviceId) {
+            showEmpty();
+            return;
+        }
+
+        showLoading();
+        fetch('/measurements/api/latest/' + encodeURIComponent(deviceId))
+            .then(res => {
+                if (res.status === 404) {
+                    showEmpty(window.AD.t('To urządzenie nie ma jeszcze pomiarów.'));
+                    return null;
+                }
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                return res.json();
+            })
+            .then(data => {
+                if (!data) return;
+                updateUI(data);
+                showContent();
+                loadHistory(deviceId);
+            })
+            .catch(err => {
+                console.error('Error fetching latest measurement:', err);
+                showError(window.AD.t('Błąd odczytu danych pomiarowych dla ') + deviceId + ': ' + err.message);
+            });
+    }
+
+    function loadHistory(deviceId) {
+        fetch('/measurements/api/history/' + encodeURIComponent(deviceId))
+            .then(response => {
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                return response.json();
+            })
+            .then(result => {
+                const body = document.getElementById('measurement-history-body');
+                body.replaceChildren();
+                const rows = result.measurements || [];
+                if (!rows.length) {
+                    body.innerHTML = '<tr><td colspan="6">' + window.AD.t('Brak zapisanych pomiarów.') + '</td></tr>';
+                    return;
+                }
+                rows.forEach((measurement, index) => {
+                    const row = document.createElement('tr');
+                    row.className = 'ad-table-row';
+                    const values = [
+                        measurement.measurement_time ? new Date(measurement.measurement_time).toLocaleString('pl-PL') : '—',
+                        measurement.water_quality_ph,
+                        measurement.water_quality_turbidity,
+                        measurement.ec,
+                        measurement.temperature,
+                    ];
+                    values.forEach(value => {
+                        const cell = document.createElement('td');
+                        cell.textContent = value === null || value === undefined ? '—' : String(value);
+                        row.appendChild(cell);
+                    });
+                    body.appendChild(row);
+
+                    const detailId = 'measurement-history-details-' + index;
+                    const actionCell = document.createElement('td');
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'ad-btn ad-btn-ghost ad-btn-sm';
+                    button.textContent = window.AD.t('Szczegóły');
+                    button.setAttribute('aria-expanded', 'false');
+                    button.setAttribute('aria-controls', detailId);
+                    button.dataset.measurementDetails = detailId;
+                    actionCell.appendChild(button);
+                    row.appendChild(actionCell);
+
+                    const detailsRow = document.createElement('tr');
+                    detailsRow.id = detailId;
+                    detailsRow.hidden = true;
+                    const detailsCell = document.createElement('td');
+                    detailsCell.colSpan = 6;
+                    const detailsGrid = document.createElement('div');
+                    detailsGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--space-3);padding:var(--space-3)';
+                    const detailFields = [
+                        [window.AD.t('Identyfikator pomiaru'), measurement.measurement_id || measurement.id],
+                        ['pH', measurement.water_quality_ph],
+                        [window.AD.t('Mętność'), measurement.water_quality_turbidity, 'NTU'],
+                        [window.AD.t('Przewodność'), measurement.ec, 'µS/cm'],
+                        [window.AD.t('Temperatura'), measurement.temperature, '°C'],
+                        [window.AD.t('Wilgotność'), measurement.humidity, '%'],
+                    ];
+                    detailFields.forEach(([label, value, unit]) => {
+                        const item = document.createElement('div');
+                        const name = document.createElement('span');
+                        name.className = 'ad-text-secondary ad-text-sm';
+                        name.textContent = label;
+                        const content = document.createElement('strong');
+                        content.textContent = value === null || value === undefined || value === '' ? '—' : `${value}${unit ? ' ' + unit : ''}`;
+                        item.append(name, document.createElement('br'), content);
+                        detailsGrid.appendChild(item);
+                    });
+                    detailsCell.appendChild(detailsGrid);
+                    detailsRow.appendChild(detailsCell);
+                    body.appendChild(detailsRow);
+                });
+            })
+            .catch(() => {
+                const body = document.getElementById('measurement-history-body');
+                body.innerHTML = '<tr><td colspan="6">' + window.AD.t('Nie udało się pobrać historii.') + '</td></tr>';
+            });
+    }
+
+    document.getElementById('measurement-history-body').addEventListener('click', event => {
+        const button = event.target.closest('[data-measurement-details]');
+        if (!button) return;
+        const detailsRow = document.getElementById(button.dataset.measurementDetails);
+        if (!detailsRow) return;
+        detailsRow.hidden = !detailsRow.hidden;
+        button.setAttribute('aria-expanded', String(!detailsRow.hidden));
+        button.textContent = detailsRow.hidden ? window.AD.t('Szczegóły') : window.AD.t('Ukryj');
+    });
+
+    function updateUI(m) {
+        const value = raw => raw === null || raw === undefined || raw === '' ? NaN : Number(raw);
+        const ph = value(m.water_quality_ph ?? m.ph);
+        const turbidity = value(m.water_quality_turbidity ?? m.turbidity);
+        const ec = value(m.ec);
+        const temp = value(m.temperature);
+
+        waterPhEl.textContent = Number.isFinite(ph) ? ph.toFixed(2) : '--';
+        if (Number.isFinite(ph) && ph >= 6.5 && ph <= 8.5) {
+            waterPhBadge.className = 'ad-badge ad-badge--success';
+            waterPhBadge.textContent = window.AD.t('w normie');
+        } else if (Number.isFinite(ph)) {
+            waterPhBadge.className = 'ad-badge ad-badge--warning';
+            waterPhBadge.textContent = window.AD.t('poza normą');
+        } else {
+            waterPhBadge.textContent = window.AD.t('brak danych');
+        }
+
+        waterTurbidityEl.textContent = Number.isFinite(turbidity) ? turbidity.toFixed(2) : '--';
+        if (Number.isFinite(turbidity) && turbidity <= 5.0) {
+            waterTurbidityBadge.className = 'ad-badge ad-badge--success';
+            waterTurbidityBadge.textContent = window.AD.t('czysta');
+        } else if (Number.isFinite(turbidity) && turbidity <= 15.0) {
+            waterTurbidityBadge.className = 'ad-badge ad-badge--warning';
+            waterTurbidityBadge.textContent = 'umiarkowana';
+        } else {
+            waterTurbidityBadge.className = 'ad-badge ad-badge--error';
+            waterTurbidityBadge.textContent = Number.isFinite(turbidity) ? window.AD.t('wysoka mętność') : window.AD.t('brak danych');
+        }
+
+        waterEcEl.textContent = Number.isFinite(ec) ? ec.toFixed(0) : '--';
+        waterEcBadge.textContent = Number.isFinite(ec) ? window.AD.t('odczyt') : window.AD.t('brak danych');
+
+        waterTempEl.textContent = Number.isFinite(temp) ? temp.toFixed(1) : '--';
+        if (Number.isFinite(temp) && temp >= 5 && temp <= 25) {
+            waterTempBadge.className = 'ad-badge ad-badge--success';
+            waterTempBadge.textContent = window.AD.t('optymalna');
+        } else if (Number.isFinite(temp)) {
+            waterTempBadge.className = 'ad-badge ad-badge--warning';
+            waterTempBadge.textContent = window.AD.t('uwaga');
+        } else {
+            waterTempBadge.textContent = 'brak danych';
+        }
+
+        if (m.timestamp || m.measurement_time) {
+            measurementMeta.style.display = 'inline-flex';
+            const dateStr = new Date(m.timestamp || m.measurement_time).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            lastMeasurementTime.textContent = window.AD.t('Ostatni pomiar: ') + dateStr;
+        }
+
+        waterQualitySummary.textContent = window.AD.t('Prezentowane wartości są odczytami czujników. Ocena przydatności wody wymaga kalibracji urządzeń i uwzględnienia lokalnego zastosowania.');
+    }
+
+    deviceSelect.addEventListener('change', function() {
+        loadDeviceData(this.value);
+    });
+
+    document.addEventListener('ad:measurement', event => {
+        if (event.detail?.device_id === deviceSelect.value) loadDeviceData(deviceSelect.value);
+    });
+
+    const pushBtn = document.getElementById('btn-enable-push');
+    const pushLabel = document.getElementById('btn-enable-push-label');
+    if (pushBtn && window.AD && window.AD.Push) {
+        (async () => {
+            const enabled = await window.AD.Push.isEnabled();
+            pushBtn.disabled = !window.AD.Push.isSupported();
+            if (enabled) {
+                pushBtn.classList.add('ad-btn-ghost');
+                pushLabel.textContent = window.AD.t('Powiadomienia push włączone');
+            }
+        })();
+        pushBtn.addEventListener('click', async function() {
+            pushBtn.disabled = true;
+            try {
+                await window.AD.Push.enable();
+                pushLabel.textContent = window.AD.t('Powiadomienia push włączone');
+                if (window.AD && window.AD.Toast) window.AD.Toast.show(window.AD.t('Powiadomienia push włączone.'), 'success');
+            } catch (err) {
+                pushBtn.disabled = false;
+                if (window.AD && window.AD.Toast) window.AD.Toast.show(window.AD.t('Nie udało się włączyć powiadomień push.'), 'error');
+            }
+        });
+    }
+
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', function() {
+            if (deviceSelect.value) {
+                loadDeviceData(deviceSelect.value);
+            } else {
+                fetchDevices();
+            }
+        });
+    }
+
+    fetchDevices();
+}
+</script>
+<script src="{{ url_for('static', filename='js/live_measurements.js') }}" defer></script>
+{% endblock %}

@@ -1,0 +1,56 @@
+{
+	email {$ACME_EMAIL}
+}
+
+deszczowka.io, www.deszczowka.io {
+	redir https://{$APP_DOMAIN}{uri} permanent
+}
+
+{$APP_DOMAIN} {
+	encode zstd gzip
+	log {
+		output stdout
+		format filter {
+			wrap json
+			request>headers>Authorization delete
+			request>headers>Cookie delete
+			request>headers>Sec-WebSocket-Protocol delete
+			resp_headers>Set-Cookie delete
+		}
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+	reverse_proxy frontend:5000
+	handle_errors {
+		root * /srv/error-pages
+		rewrite * /gateway.html
+		file_server
+	}
+}
+
+{$API_DOMAIN} {
+	encode zstd gzip
+	log {
+		output stdout
+		format filter {
+			wrap json
+			request>headers>Authorization delete
+			request>headers>Cookie delete
+			request>headers>Sec-WebSocket-Protocol delete
+			resp_headers>Set-Cookie delete
+		}
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+	reverse_proxy backend:8000
+}

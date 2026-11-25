@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="{{ current_lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Analizator Deszczówki — system monitoringu jakości wody deszczowej (IoT: czujniki → ESP32 → Raspberry Pi → backend → dashboard).">
+    <title>{{ t('Analizator Deszczówki') }}{% block title_suffix %}{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+</head>
+<body data-ws-base="{{ config.WS_URL }}">
+    <div class="ad-app">
+        <aside class="ad-sidebar">
+            <div class="ad-sidebar-logo">
+
+                <div>
+                    <div class="ad-sidebar-logo-text">{{ t('Analizator Deszczówki') }}</div>
+                    <div class="ad-sidebar-logo-subtitle">{{ t('System monitoringu') }}</div>
+                </div>
+            </div>
+
+            <nav class="ad-sidebar-nav">
+                <div class="ad-sidebar-section-label">{{ t('Nawigacja') }}</div>
+                <a href="{{ url_for('dashboard.index') }}" class="ad-nav-link {% if request.endpoint == 'dashboard.index' %}ad-nav-link--active{% endif %}">
+                    <span class="ad-nav-link-icon"></span>
+                    <span>{{ t('Dashboard') }}</span>
+                </a>
+                <a href="{{ url_for('devices.index') }}" class="ad-nav-link {% if request.endpoint == 'devices.index' %}ad-nav-link--active{% endif %}">
+                    <span class="ad-nav-link-icon"></span>
+                    <span>{{ t('Urządzenia') }}</span>
+                </a>
+                <a href="{{ url_for('measurements.index') }}" class="ad-nav-link {% if request.endpoint == 'measurements.index' %}ad-nav-link--active{% endif %}">
+                    <span class="ad-nav-link-icon"></span>
+                    <span>{{ t('Pomiary') }}</span>
+                </a>
+                <a href="{{ url_for('analytics.index') }}" class="ad-nav-link {% if request.endpoint == 'analytics.index' %}ad-nav-link--active{% endif %}">
+                    <span class="ad-nav-link-icon"></span>
+                    <span>{{ t('Analiza') }}</span>
+                </a>
+                <a href="{{ url_for('settings.index') }}" class="ad-nav-link {% if request.endpoint == 'settings.index' %}ad-nav-link--active{% endif %}">
+                    <span class="ad-nav-link-icon"></span>
+                    <span>{{ t('Ustawienia') }}</span>
+                </a>
+                {% if session.get('is_admin') %}
+                <a href="{{ url_for('admin.index') }}" class="ad-nav-link {% if request.endpoint == 'admin.index' %}ad-nav-link--active{% endif %}">
+                    <span class="ad-nav-link-icon"></span>
+                    <span>{{ t('Panel administratora') }}</span>
+                </a>
+                {% endif %}
+
+{% if session.get('user_settings', {}).get('dev_mode', false) %}
+<a href="{{ url_for('settings.api_settings') }}" class="ad-nav-link {% if request.endpoint == 'settings.api_settings' %}ad-nav-link--active{% endif %}">
+  <span class="ad-nav-link-icon"></span>
+  <span>{{ t('API i połączenie') }}</span>
+</a>
+{% endif %}
+
+            </nav>
+
+            <div class="ad-sidebar-user" aria-label="Zalogowany użytkownik">
+                <div class="ad-sidebar-user-avatar" aria-hidden="true">
+                    {{ (session.get('username') or 'U')[:1]|upper }}
+                </div>
+                <div class="ad-sidebar-user-info">
+                    <div class="ad-sidebar-user-name" title="{{ session.get('username') or 'Użytkownik' }}">
+                        {{ session.get('username') or 'Użytkownik' }}
+                    </div>
+                    {% if session.get('authenticated') %}
+                    <div class="ad-sidebar-user-role">
+                        {{ t('Administrator') if session.get('is_admin') else t('Konto użytkownika') }}
+                    </div>
+                    {% endif %}
+                </div>
+
+            </div>
+            {% if session.get('authenticated') %}
+            <a href="{{ url_for('auth.logout') }}" class="ad-nav-link" title="{{ t('Wyloguj') }}">
+                <span class="ad-nav-link-icon" aria-hidden="true"></span>
+                <span>{{ t('Wyloguj') }}</span>
+            </a>
+            {% endif %}
+        </aside>
+
+        <main class="ad-main">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+                {% for category, message in messages %}
+                  <div class="ad-alert ad-alert--{{ 'error' if category == 'error' else category }}" role="alert">
+                    <div class="ad-alert-content">
+                      <div class="ad-alert-message">{{ message }}</div>
+                    </div>
+                    <button class="ad-alert-close" aria-label="{{ t('Zamknij') }}" onclick="this.parentElement.remove()">×</button>
+                  </div>
+                {% endfor %}
+              {% endif %}
+            {% endwith %}
+            {% block content %}{% endblock %}
+            <footer class="ad-legal-footer" aria-label="Informacje prawne">
+                <a href="https://deszczowka.io/legal/privacy">Prywatność</a>
+                <a href="https://deszczowka.io/legal/cookies">Cookies</a>
+                <a href="https://deszczowka.io/legal/terms">Regulamin</a>
+                <a href="https://deszczowka.io/legal/eula">EULA</a>
+            </footer>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <aside id="ad-cookie-notice" class="ad-cookie-notice" role="region" aria-label="Informacja o ciasteczkach" hidden>
+        <p>Ta aplikacja wykorzystuje niezbędne pliki cookie do utrzymania sesji logowania. <a href="https://deszczowka.io/cookies">Dowiedz się więcej</a>.</p>
+        <button type="button" class="ad-cookie-dismiss" aria-label="Zamknij informację o ciasteczkach">Rozumiem</button>
+    </aside>
+    <script>
+    (function () {
+        const notice = document.getElementById('ad-cookie-notice');
+        try {
+            if (localStorage.getItem('ad-cookie-notice-dismissed') !== '1') notice.hidden = false;
+            notice.querySelector('button').addEventListener('click', function () {
+                try { localStorage.setItem('ad-cookie-notice-dismissed', '1'); } catch (_) {}
+                notice.hidden = true;
+            });
+        } catch (_) { notice.hidden = false; }
+    })();
+    window.AD = window.AD || {};
+    const currentLanguage = {{ current_lang|tojson }};
+    {% if current_lang != 'pl' %}
+    const jsTranslations = {{ js_translations|tojson }};
+    {% else %}
+    const jsTranslations = {};
+    {% endif %}
+    window.AD.t = function (key) {
+        if (currentLanguage === 'pl') return key;
+        return jsTranslations[key] || key;
+    };
+    window.AD.setLanguage = function (lang) {
+        fetch('/settings/api/lang', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+            body: JSON.stringify({language: lang})
+        }).then(function (res) {
+            if (res.ok) window.location.reload();
+        });
+    };
+    </script>
+    {% if session.get('authenticated') %}
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const devToggle = document.getElementById('btnToggle');
+        if (!devToggle) return;
+        devToggle.addEventListener('change', async function () {
+            const enabled = devToggle.checked;
+            devToggle.disabled = true;
+            try {
+                const response = await fetch('/settings/api/config', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+                    body: JSON.stringify({dev_mode: enabled})
+                });
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                window.location.reload();
+            } catch (error) {
+                devToggle.checked = !enabled;
+                devToggle.disabled = false;
+                if (window.AD && window.AD.Toast) {
+                    window.AD.Toast.show('{{ t('Nie udało się zmienić Dev Mode.') }}', 'error');
+                }
+            }
+        });
+    });
+    </script>
+    {% endif %}
+    {% block scripts %}{% endblock %}
+</body>
+</html>

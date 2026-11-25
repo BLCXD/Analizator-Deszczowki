@@ -1,0 +1,15 @@
+{
+  email {$TLS_EMAIL}
+}
+
+baza.deszczowka.io {
+  tls {
+    dns cloudflare {$CLOUDFLARE_API_TOKEN}
+  }
+  reverse_proxy 127.0.0.1:8000
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Frame-Options DENY
+    Referrer-Policy no-referrer
+  }
+}

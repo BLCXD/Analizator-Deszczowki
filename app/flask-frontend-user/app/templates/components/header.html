@@ -1,0 +1,31 @@
+<header class="ad-topbar" role="banner">
+    <button class="ad-hamburger" id="navbar-toggle" aria-label="{{ t('Otwórz menu') }}" aria-expanded="false">
+        <span class="ad-hamburger-line"></span>
+        <span class="ad-hamburger-line"></span>
+        <span class="ad-hamburger-line"></span>
+    </button>
+    <a href="{{ url_for('dashboard.index') }}" class="ad-topbar-logo">
+        <svg width="24" height="24" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2" fill="none"/>
+            <path d="M16 8C16 8 10 16 10 20C10 23.3 12.7 26 16 26C19.3 26 22 23.3 22 20C22 16 16 8 16 8Z" fill="currentColor" opacity="0.3" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+        <span>{{ t('Analizator Deszczówki') }}</span>
+    </a>
+    {% if authenticated %}
+    <div style="display: flex; align-items: center; gap: var(--space-2);">
+        <span class="ad-status-dot ad-status-dot--online"></span>
+        <a href="{{ url_for('auth.logout') }}" class="ad-btn-icon ad-btn-ghost" title="{{ t('Wyloguj') }}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+        </a>
+    </div>
+    {% else %}
+    <div style="display: flex; gap: var(--space-2);">
+        <a href="{{ url_for('auth.login') }}" class="ad-btn ad-btn-ghost ad-btn-sm">{{ t('Logowanie') }}</a>
+        <a href="{{ url_for('auth.register') }}" class="ad-btn ad-btn-primary ad-btn-sm">{{ t('Rejestracja') }}</a>
+    </div>
+    {% endif %}
+</header>

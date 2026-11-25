@@ -1,0 +1,640 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('Analiza trendów — Analizator Deszczówki') }}{% endblock %}
+
+{% block content %}
+<div class="ad-page">
+
+    <div class="ad-page-header">
+        <div class="ad-page-header-content">
+            <h1 class="ad-page-title">{{ t('Analiza trendów') }}</h1>
+            <p class="ad-page-subtitle">{{ t('Wizualizacja szeregów czasowych i detekcja anomalii') }}</p>
+        </div>
+        <div class="ad-page-header-actions">
+
+            <div class="ad-btn-group" role="group" aria-label="{{ t('Zakres czasu') }}">
+                <button type="button" class="ad-btn ad-btn-ghost ad-btn-sm" data-hours="6">6h</button>
+                <button type="button" class="ad-btn ad-btn-secondary ad-btn-sm active" data-hours="24">24h</button>
+                <button type="button" class="ad-btn ad-btn-ghost ad-btn-sm" data-hours="168">7d</button>
+                <button type="button" class="ad-btn ad-btn-ghost ad-btn-sm" data-hours="720">30d</button>
+            <button class="ad-btn ad-btn-ghost ad-btn-sm ml-auto" id="btn-enable-push" title="{{ t('Włącz powiadomienia push') }}" style="margin-left: var(--space-4);">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+                <span id="btn-enable-push-label">{{ t('Włącz powiadomienia push') }}</span>
+            </button>
+            </div>
+        </div>
+        <div class="ad-page-header-accent"></div>
+    </div>
+
+    <div class="ad-filter-bar ad-stagger-1" style="display: flex; flex-wrap: wrap; gap: var(--space-3); justify-content: space-between; align-items: flex-end; margin-bottom: var(--space-4);">
+        <div style="display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-end;">
+            <div class="ad-form-group" style="margin-bottom: 0; min-width: 260px;">
+                <label for="analytics-device-select" class="ad-label">{{ t('Urządzenie') }}</label>
+                <div class="ad-select-wrapper">
+                    <select class="ad-select" id="analytics-device-select">
+                        <option value="">{{ t('Wybierz urządzenie...') }}</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="ad-form-group" style="margin-bottom: 0; min-width: 200px;">
+                <label for="metric-select" class="ad-label">{{ t('Parametr pomiarowy') }}</label>
+                <div class="ad-select-wrapper">
+                    <select class="ad-select" id="metric-select">
+                        <option value="water_quality_ph" selected>{{ t('Kwasowość (pH)') }}</option>
+                        <option value="water_quality_turbidity">{{ t('Mętność (NTU)') }}</option>
+                        <option value="ec">{{ t('Przewodność (µS/cm)') }}</option>
+                        <option value="temperature">{{ t('Temperatura (°C)') }}</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="ad-chart-legend-custom" style="display: flex; gap: var(--space-3); font-size: var(--font-size-xs, 0.75rem); color: var(--color-text-secondary, #B0BEC5);">
+            <span style="display: inline-flex; align-items: center; gap: 6px;">
+                <span style="width: 12px; height: 3px; background: var(--color-accent, #E49D22); border-radius: 2px;"></span> {{ t('Dane pomiarowe') }}
+            </span>
+        </div>
+    </div>
+
+    <div class="analytics-workspace">
+      <div class="analytics-main-column">
+
+    <div id="analytics-loading" style="display: none;">
+        {% include 'components/states/loading.html' %}
+    </div>
+
+    <div id="analytics-empty" style="display: none;">
+        {% include 'components/states/empty.html' %}
+    </div>
+
+    <div id="analytics-error" style="display: none;">
+        {% set message = t('Wystąpił błąd podczas ładowania danych analizy') %}
+        {% include 'components/states/error.html' %}
+    </div>
+
+    <div id="analytics-chart-container" class="ad-stagger-2" style="display: none; margin-bottom: var(--space-5);">
+        <div class="ad-card">
+            <div class="ad-card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <span class="ad-metric-label" id="chart-metric-label">{{ t('Przebieg czasowy') }}</span>
+                    <h3 class="ad-card-title" id="chart-title" style="margin: 0;">{{ t('Trend pomiaru') }}</h3>
+                </div>
+                <div style="display: flex; gap: var(--space-2); align-items: center;">
+                    <span class="ad-badge ad-badge--info" id="chart-datapoints-count">0 {{ t('punktów') }}</span>
+                </div>
+            </div>
+            <div class="ad-card-body" style="padding: var(--space-4);">
+                <div class="ad-chart-container" style="position: relative; height: 360px; width: 100%;">
+                    <canvas id="metricChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+      </div>
+      <aside class="analytics-ai-column" aria-labelledby="ai-analysis-title">
+    <section class="ad-card analytics-ai-card" aria-labelledby="ai-analysis-title">
+        <div class="ad-card-header" style="display:flex; justify-content:space-between; gap:var(--space-3); align-items:center; flex-wrap:wrap;">
+            <div>
+                <span class="ad-metric-label">{{ t('Dodatkowe podsumowanie') }}</span>
+                <h2 class="ad-card-title" id="ai-analysis-title" style="margin:0;">{{ t('Analiza AI') }}</h2>
+            </div>
+        </div>
+        <div class="ad-card-body">
+            <p class="ad-text-secondary">{{ t('Analiza obejmuje maksymalnie 120 odczytów. AI opisuje widoczne zmiany; wynik jest informacyjny i nie potwierdza bezpieczeństwa wody ani dokładności czujników.') }}</p>
+            <fieldset style="border:0;padding:0;margin:0 0 var(--space-3)">
+                <legend class="ad-label">{{ t('Dane pogodowe do analizy (opcjonalnie)') }}</legend>
+                <label style="display:flex;gap:var(--space-2);align-items:center;margin-bottom:var(--space-2)"><input type="radio" name="ai-weather-mode" value="city"> {{ t('Podaj miasto') }}</label>
+                <div id="ai-weather-manual" hidden style="display:flex;gap:var(--space-2);flex-wrap:wrap;margin-bottom:var(--space-2)">
+                    <label class="ad-form-group" style="margin:0;min-width:220px">{{ t('Miasto') }} <input id="ai-weather-city" class="ad-input" type="text" maxlength="120" autocomplete="address-level2" placeholder="np. Warszawa"></label>
+                    <button id="ai-weather-submit" class="ad-btn ad-btn-secondary ad-btn-sm" type="button">{{ t('Zastosuj') }}</button>
+                </div>
+                <label style="display:flex;gap:var(--space-2);align-items:center"><input type="radio" name="ai-weather-mode" value="device"> {{ t('Pobierz lokalizację tego urządzenia') }}</label>
+                <p class="ad-text-secondary" style="margin:var(--space-2) 0">{{ t('Wybrane miasto lub przybliżona lokalizacja zostaną użyte do pobrania pogody.') }}</p>
+                <button id="ai-weather-location" class="ad-btn ad-btn-ghost ad-btn-sm" type="button">{{ t('Pobierz i użyj lokalizacji') }}</button>
+                <button id="ai-weather-clear" class="ad-btn ad-btn-ghost ad-btn-sm" type="button">{{ t('Analizuj bez pogody') }}</button>
+                <span id="ai-weather-status" class="ad-text-secondary" role="status" aria-live="polite">{{ t('Pogoda jest opcjonalna.') }}</span>
+            </fieldset>
+            <p id="ai-analysis-status" class="ad-text-secondary" role="status" aria-live="polite">{{ t('Wybierz urządzenie, aby przygotować analizę.') }}</p>
+            <pre id="ai-analysis-result" class="analytics-ai-result" hidden></pre>
+            <button id="ai-analysis-toggle" class="ad-btn ad-btn-ghost ad-btn-sm" type="button" aria-expanded="false" hidden style="margin-top: var(--space-3);">{{ t('Zobacz więcej') }}</button>
+        </div>
+    </section>
+      </aside>
+    </div>
+
+    <div id="analytics-anomalies-container" class="ad-stagger-3" style="display: none;">
+        <div class="ad-section-header">
+            <h2 class="ad-section-title">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+                {{ t('Wykryte anomalie i alerty') }}
+            </h2>
+            <span class="ad-section-meta" id="anomalies-summary">{{ t('Automatyczna analiza odchyleń') }}</span>
+        </div>
+
+        <div class="ad-card">
+            <div class="ad-table-wrapper" id="anomalies-table">
+                <p class="ad-text-secondary" style="text-align: center; padding: var(--space-4);">{{ t('Wybierz urządzenie, aby zobaczyć wykryte anomalie.') }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/chart.umd.min.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    initAnalyticsPage();
+});
+
+function initAnalyticsPage() {
+    const deviceSelect = document.getElementById('analytics-device-select');
+    const metricSelect = document.getElementById('metric-select');
+    const loadingContainer = document.getElementById('analytics-loading');
+    const emptyContainer = document.getElementById('analytics-empty');
+    const chartContainer = document.getElementById('analytics-chart-container');
+    const anomaliesContainer = document.getElementById('analytics-anomalies-container');
+    const errorContainer = document.getElementById('analytics-error');
+    const metricChart = document.getElementById('metricChart');
+    const anomaliesTable = document.getElementById('anomalies-table');
+    const chartTitle = document.getElementById('chart-title');
+    const chartMetricLabel = document.getElementById('chart-metric-label');
+    const chartDatapointsCount = document.getElementById('chart-datapoints-count');
+    const timeframeButtons = document.querySelectorAll('[data-hours]');
+    const aiStatus = document.getElementById('ai-analysis-status');
+    const aiResult = document.getElementById('ai-analysis-result');
+    const aiToggle = document.getElementById('ai-analysis-toggle');
+    const weatherLocationButton = document.getElementById('ai-weather-location');
+    const weatherStatus = document.getElementById('ai-weather-status');
+    const weatherModeInputs = document.querySelectorAll('[name="ai-weather-mode"]');
+    const weatherManual = document.getElementById('ai-weather-manual');
+    const weatherCity = document.getElementById('ai-weather-city');
+    const weatherSubmit = document.getElementById('ai-weather-submit');
+    const weatherClear = document.getElementById('ai-weather-clear');
+    const aiCsrfToken = {{ analytics_csrf|tojson }};
+    let aiRequestId = 0;
+    let weatherCoordinates = (() => {
+        try {
+            const city = localStorage.getItem('ad-ai-weather-city');
+            return city ? { city } : null;
+        } catch (_) { return null; }
+    })();
+
+    let currentHours = 24;
+    let chartInstance = null;
+
+    function resetAiResult() {
+        aiResult.hidden = true;
+        aiResult.classList.remove('is-expanded');
+        aiToggle.hidden = true;
+        aiToggle.textContent = '{{ t('Zobacz więcej') }}';
+        aiToggle.setAttribute('aria-expanded', 'false');
+    }
+
+    aiToggle.addEventListener('click', function() {
+        const expanded = aiResult.classList.toggle('is-expanded');
+        aiToggle.textContent = expanded ? '{{ t('Zobacz mniej') }}' : '{{ t('Zobacz więcej') }}';
+        aiToggle.setAttribute('aria-expanded', String(expanded));
+    });
+
+    weatherModeInputs.forEach(input => input.addEventListener('change', function() {
+        weatherManual.hidden = this.value !== 'city';
+    }));
+    if (weatherCoordinates) {
+        document.querySelector('[name="ai-weather-mode"][value="city"]').checked = true;
+        weatherManual.hidden = false;
+        weatherCity.value = weatherCoordinates.city;
+        weatherStatus.textContent = '{{ t('Zapamiętane miasto') }}: ' + weatherCoordinates.city;
+    }
+    weatherSubmit.addEventListener('click', function() {
+        const city = weatherCity.value.trim();
+        if (!city) {
+            weatherStatus.textContent = '{{ t('Wpisz nazwę miasta.') }}';
+            return;
+        }
+        weatherCoordinates = { city };
+        try { localStorage.setItem('ad-ai-weather-city', city); } catch (_) {}
+        weatherStatus.textContent = '{{ t('Miasto zostanie użyte do pobrania pogody dla tej analizy.') }}';
+        if (deviceSelect.value) loadAiAnalysis(deviceSelect.value);
+    });
+    weatherClear.addEventListener('click', function() {
+        weatherCoordinates = null;
+        weatherStatus.textContent = '{{ t('Analiza będzie wykonana bez danych pogodowych.') }}';
+        if (deviceSelect.value) loadAiAnalysis(deviceSelect.value);
+    });
+    weatherLocationButton.addEventListener('click', function() {
+        if (!navigator.geolocation) {
+            weatherStatus.textContent = '{{ t('Przeglądarka nie udostępnia lokalizacji.') }}';
+            return;
+        }
+        weatherStatus.textContent = '{{ t('Pobieram lokalizację…') }}';
+        navigator.geolocation.getCurrentPosition(position => {
+            weatherCoordinates = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+            weatherStatus.textContent = '{{ t('Pogoda z przybliżonej lokalizacji zostanie dołączona do analizy.') }}';
+            if (deviceSelect.value) loadAiAnalysis(deviceSelect.value);
+        }, () => {
+            weatherStatus.textContent = '{{ t('Brak dostępu do lokalizacji. Analiza będzie bez danych pogodowych.') }}';
+        }, { timeout: 10000, maximumAge: 300000 });
+    });
+
+    timeframeButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            timeframeButtons.forEach(b => {
+                b.classList.remove('active', 'ad-btn-secondary');
+                b.classList.add('ad-btn-ghost');
+            });
+            this.classList.add('active', 'ad-btn-secondary');
+            this.classList.remove('ad-btn-ghost');
+            currentHours = parseInt(this.getAttribute('data-hours'), 10) || 24;
+            resetAiResult();
+            if (deviceSelect.value) {
+                loadDeviceData(deviceSelect.value);
+                loadAiAnalysis(deviceSelect.value);
+            }
+        });
+    });
+
+    function showLoading() {
+        loadingContainer.style.display = 'block';
+        emptyContainer.style.display = 'none';
+        chartContainer.style.display = 'none';
+        anomaliesContainer.style.display = 'none';
+        errorContainer.style.display = 'none';
+    }
+
+    function showEmpty(message) {
+        loadingContainer.style.display = 'none';
+        emptyContainer.style.display = 'block';
+        chartContainer.style.display = 'none';
+        anomaliesContainer.style.display = 'none';
+        errorContainer.style.display = 'none';
+        const emptyText = emptyContainer.querySelector('.ad-empty-state-text');
+        if (emptyText && message) emptyText.textContent = message;
+    }
+
+    function showChart() {
+        loadingContainer.style.display = 'none';
+        emptyContainer.style.display = 'none';
+        chartContainer.style.display = 'block';
+        errorContainer.style.display = 'none';
+    }
+
+    function showError(message) {
+        loadingContainer.style.display = 'none';
+        emptyContainer.style.display = 'none';
+        chartContainer.style.display = 'none';
+        anomaliesContainer.style.display = 'none';
+        errorContainer.style.display = 'block';
+        const errorText = errorContainer.querySelector('.ad-empty-state-text');
+        if (errorText && message) errorText.textContent = message;
+    }
+
+    function initChart() {
+        if (chartInstance) {
+            chartInstance.destroy();
+        }
+
+        const ctx = metricChart.getContext('2d');
+        const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+        gradient.addColorStop(0, 'rgba(228, 157, 34, 0.35)');
+        gradient.addColorStop(1, 'rgba(228, 157, 34, 0.00)');
+
+        chartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: '{{ t('Wartość') }}',
+                    data: [],
+                    borderColor: '#E49D22',
+                    borderWidth: 2.5,
+                    backgroundColor: gradient,
+                    fill: true,
+                    tension: 0.35,
+                    pointBackgroundColor: '#D4F4FF',
+                    pointBorderColor: '#E49D22',
+                    pointBorderWidth: 2,
+                    pointRadius: 3,
+                    pointHoverRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: {
+                    duration: 600,
+                    easing: 'easeOutQuart'
+                },
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: '#141B22',
+                        titleColor: '#D4F4FF',
+                        bodyColor: '#D4F4FF',
+                        borderColor: '#2E3A4F',
+                        borderWidth: 1,
+                        padding: 10,
+                        cornerRadius: 8,
+                        displayColors: false,
+                        callbacks: {
+                            label: function(context) {
+                                return context.parsed.y !== null ? context.parsed.y.toFixed(2) : '--';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            color: 'rgba(46, 58, 79, 0.35)',
+                            drawBorder: false
+                        },
+                        ticks: {
+                            color: '#B0BEC5',
+                            font: { family: 'Inter', size: 11 },
+                            maxRotation: 0,
+                            autoSkip: true,
+                            maxTicksLimit: 8
+                        }
+                    },
+                    y: {
+                        grid: {
+                            color: 'rgba(46, 58, 79, 0.35)',
+                            drawBorder: false
+                        },
+                        ticks: {
+                            color: '#B0BEC5',
+                            font: { family: 'Inter', size: 11 }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function updateChart(labels, data, labelName) {
+        if (!chartInstance) {
+            initChart();
+        }
+        chartInstance.data.labels = labels;
+        chartInstance.data.datasets[0].data = data;
+        chartInstance.data.datasets[0].label = labelName;
+        chartInstance.update();
+        if (chartDatapointsCount) {
+            chartDatapointsCount.textContent = data.length + ' {{ t('odczytów') }}';
+        }
+    }
+
+    function updateAnomaliesTable(anomalies) {
+        if (!anomalies || anomalies.length === 0) {
+            anomaliesTable.innerHTML = '<p class="ad-text-secondary" style="text-align: center; padding: var(--space-4);">{{ t('Brak wykrytych nietypowych odczytów. Nie stanowi to potwierdzenia bezpieczeństwa wody.') }}</p>';
+            return;
+        }
+
+        let html = `
+            <table class="ad-table">
+                <thead>
+                    <tr>
+                        <th>{{ t('Data i godzina') }}</th>
+                        <th>{{ t('Wartość') }}</th>
+                        <th>{{ t('Typ zdarzenia') }}</th>
+                        <th>{{ t('Poziom istotności') }}</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        anomalies.forEach(a => {
+            const badgeClass = a.severity === 'high' ? 'ad-badge--error' :
+                               a.severity === 'medium' ? 'ad-badge--warning' : 'ad-badge--info';
+            const dotClass = a.severity === 'high' ? 'ad-status-dot--offline' :
+                             a.severity === 'medium' ? 'ad-status-dot--warning' : 'ad-status-dot--checking';
+            const severityLabel = a.severity === 'high' ? '{{ t('Wysoki') }}' :
+                                  a.severity === 'medium' ? '{{ t('Średni') }}' : '{{ t('Informacja') }}';
+            const dateStr = a.timestamp ? new Date(a.timestamp).toLocaleString('pl-PL') : '--';
+            const valStr = typeof a.value === 'number' ? a.value.toFixed(2) : (a.value || '--');
+            const detailsId = 'anomaly-details-' + html.length;
+            const metricLabels = [
+                ['water_quality_ph', 'pH', ''],
+                ['water_quality_turbidity', '{{ t('Mętność') }}', 'NTU'],
+                ['ec', '{{ t('Przewodność') }}', 'µS/cm'],
+                ['temperature', '{{ t('Temperatura') }}', '°C'],
+                ['humidity', '{{ t('Wilgotność') }}', '%']
+            ];
+            const detailMetrics = metricLabels
+                .filter(([key]) => a[key] !== null && a[key] !== undefined)
+                .map(([key, label, unit]) => `<div><span class="ad-text-secondary ad-text-sm">${escapeHtml(label)}</span><br><strong>${escapeHtml(formatAnomalyValue(a[key]))}${unit ? ' ' + escapeHtml(unit) : ''}</strong></div>`)
+                .join('');
+
+            html += `
+                <tr class="ad-table-row">
+                    <td><span class="ad-text-primary">${escapeHtml(dateStr)}</span></td>
+                    <td><strong>${escapeHtml(valStr)}</strong></td>
+                    <td>${escapeHtml(a.type || '{{ t('Odchylenie od normy') }}')}</td>
+                    <td>
+                        <span class="ad-badge ${badgeClass}">
+                            <span class="ad-status-dot ${dotClass}"></span>
+                            ${severityLabel}
+                        </span>
+                    </td>
+                    <td><button class="ad-btn ad-btn-ghost ad-btn-sm" type="button" aria-expanded="false" aria-controls="${detailsId}" data-anomaly-details="${detailsId}">{{ t('Szczegóły') }}</button></td>
+                </tr>
+                <tr id="${detailsId}" hidden><td colspan="5"><div style="padding:var(--space-3)">
+                    <p class="ad-text-secondary" style="margin:0 0 var(--space-3)">{{ t('Odczyt oznaczony jako nietypowy przez analizę statystyczną dla wybranego okresu. To sygnał do sprawdzenia danych i czujnika, nie ocena jakości ani bezpieczeństwa wody.') }}</p>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--space-3)">${detailMetrics || '<span class="ad-text-secondary">{{ t('Brak dodatkowych wartości pomiaru.') }}</span>'}</div>
+                </div></td></tr>
+            `;
+        });
+
+        html += `
+                </tbody>
+            </table>
+        `;
+
+        anomaliesTable.innerHTML = html;
+        anomaliesContainer.style.display = 'block';
+    }
+
+    function escapeHtml(value) {
+        const element = document.createElement('span');
+        element.textContent = value == null ? '—' : String(value);
+        return element.innerHTML;
+    }
+
+    function formatAnomalyValue(value) {
+        const number = Number(value);
+        return Number.isFinite(number) ? number.toFixed(2) : String(value ?? '—');
+    }
+
+    anomaliesTable.addEventListener('click', function(event) {
+        const button = event.target.closest('[data-anomaly-details]');
+        if (!button) return;
+        const details = document.getElementById(button.dataset.anomalyDetails);
+        if (!details) return;
+        details.hidden = !details.hidden;
+        button.setAttribute('aria-expanded', String(!details.hidden));
+        button.textContent = details.hidden ? '{{ t('Szczegóły') }}' : '{{ t('Ukryj') }}';
+    });
+
+    function fetchDevices() {
+        showLoading();
+        fetch('/devices/api/list', { credentials: 'same-origin' })
+            .then(res => {
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                return res.json();
+            })
+            .then(data => {
+                const devices = data.devices || [];
+                deviceSelect.innerHTML = '<option value="">{{ t('Wybierz urządzenie...') }}</option>';
+                devices.forEach(d => {
+                    const opt = document.createElement('option');
+                    opt.value = d.device_id || d.id;
+                    opt.textContent = (d.name || '{{ t('Urządzenie') }} ' + d.id) + ' (' + (d.location || '{{ t('Brak lokalizacji') }}') + ')';
+                    deviceSelect.appendChild(opt);
+                });
+
+                if (devices.length > 0) {
+                    deviceSelect.value = devices[0].device_id || devices[0].id;
+                    loadDeviceData(deviceSelect.value);
+                    loadAiAnalysis(deviceSelect.value);
+                } else {
+                    showEmpty();
+                    resetAiResult();
+                    aiStatus.textContent = '{{ t('Brak urządzeń do analizy.') }}';
+                }
+            })
+            .catch(err => {
+                showError('{{ t('Nie udało się pobrać listy urządzeń:') }} ' + err.message);
+            });
+    }
+
+    function loadDeviceData(deviceId) {
+        if (!deviceId) {
+            showEmpty();
+            return;
+        }
+
+        showLoading();
+        const selectedMetric = metricSelect.value;
+        const metricName = metricSelect.options[metricSelect.selectedIndex].text;
+        chartTitle.textContent = '{{ t('Trend:') }} ' + metricName;
+        chartMetricLabel.textContent = metricName;
+
+        Promise.all([
+            fetch('/analytics/api/history/' + encodeURIComponent(deviceId), { credentials: 'same-origin' }).then(r => r.ok ? r.json() : Promise.reject(new Error('history'))),
+            fetch('/analytics/api/anomalies/' + encodeURIComponent(deviceId) + '?hours=' + currentHours, { credentials: 'same-origin' }).then(r => r.ok ? r.json() : Promise.reject(new Error('anomalies'))),
+        ])
+            .then(([history, anomaliesResult]) => {
+                const cutoff = Date.now() - currentHours * 60 * 60 * 1000;
+                const dataPoints = (history.measurements || []).filter(item => {
+                    const timestamp = Date.parse(item.measurement_time);
+                    return Number.isFinite(timestamp) && timestamp >= cutoff && item[selectedMetric] !== null && item[selectedMetric] !== undefined;
+                }).reverse();
+                if (!dataPoints.length) {
+                    updateAnomaliesTable([]);
+                    showEmpty('{{ t('Brak pomiarów dla wybranego okresu.') }}');
+                    return;
+                }
+                const labels = dataPoints.map(item => new Date(item.measurement_time).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' }));
+                const values = dataPoints.map(item => Number(item[selectedMetric]));
+                updateChart(labels, values, metricName);
+                showChart();
+                const anomalies = anomaliesResult.anomalies || [];
+                updateAnomaliesTable(anomalies.map(item => ({
+                    ...item,
+                    timestamp: item.measurement_time,
+                    value: item[selectedMetric],
+                    type: '{{ t('Nietypowy pomiar — zweryfikuj odczyt') }}',
+                    severity: 'medium',
+                })));
+            })
+            .catch(() => showError('{{ t('Nie udało się pobrać rzeczywistych danych analitycznych. Spróbuj ponownie.') }}'));
+    }
+
+    deviceSelect.addEventListener('change', function() {
+        aiRequestId++;
+        resetAiResult();
+        aiStatus.textContent = this.value ? '{{ t('Analiza zostanie przygotowana automatycznie…') }}' : '{{ t('Wybierz urządzenie, aby przygotować analizę.') }}';
+        loadDeviceData(this.value);
+        if (this.value) loadAiAnalysis(this.value);
+    });
+
+    async function loadAiAnalysis(deviceId) {
+        const requestId = ++aiRequestId;
+        resetAiResult();
+        aiStatus.textContent = '{{ t('Analizuję ostatnie pomiary… To może potrwać kilkadziesiąt sekund.') }}';
+        try {
+            const params = new URLSearchParams({ hours: currentHours });
+            if (weatherCoordinates) {
+                if (weatherCoordinates.city) params.set('city', weatherCoordinates.city);
+                else {
+                    params.set('latitude', weatherCoordinates.latitude);
+                    params.set('longitude', weatherCoordinates.longitude);
+                }
+            }
+            const response = await fetch('/analytics/api/ai/' + encodeURIComponent(deviceId) + '?' + params, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'X-CSRF-Token': aiCsrfToken, 'Accept': 'application/json' }
+            });
+            const result = await response.json();
+            if (requestId !== aiRequestId) return;
+            if (!response.ok) throw new Error(result.error || '{{ t('Nie udało się przygotować analizy.') }}');
+            aiResult.textContent = result.analysis || '';
+            aiResult.hidden = false;
+            aiToggle.hidden = aiResult.scrollHeight <= aiResult.clientHeight;
+            aiStatus.textContent = `${result.weather_error ? result.weather_error + ' ' : ''}{{ t('Analiza') }} ${result.measurement_count} {{ t('odczytów z okresu') }} ${result.period_hours} h. ${result.disclaimer || ''}`;
+        } catch (error) {
+            if (requestId === aiRequestId) aiStatus.textContent = error.message || '{{ t('Nie udało się przygotować analizy AI. Spróbuj ponownie.') }}';
+        }
+    }
+
+    metricSelect.addEventListener('change', function() {
+        if (deviceSelect.value) {
+            loadDeviceData(deviceSelect.value);
+        }
+    });
+
+    const pushBtn = document.getElementById('btn-enable-push');
+    const pushLabel = document.getElementById('btn-enable-push-label');
+    if (pushBtn && window.AD && window.AD.Push) {
+        (async () => {
+            const enabled = await window.AD.Push.isEnabled();
+            pushBtn.disabled = !window.AD.Push.isSupported();
+            if (enabled) {
+                pushLabel.textContent = window.AD.t('Powiadomienia push włączone');
+            }
+        })();
+        pushBtn.addEventListener('click', async function() {
+            pushBtn.disabled = true;
+            try {
+                await window.AD.Push.enable();
+                pushLabel.textContent = window.AD.t('Powiadomienia push włączone');
+                if (window.AD && window.AD.Toast) window.AD.Toast.show(window.AD.t('Powiadomienia push włączone.'), 'success');
+            } catch (err) {
+                pushBtn.disabled = false;
+                if (window.AD && window.AD.Toast) window.AD.Toast.show(window.AD.t('Nie udało się włączyć powiadomień push.'), 'error');
+            }
+        });
+    }
+
+    fetchDevices();
+}
+</script>
+<script src="{{ url_for('static', filename='js/chart.umd.min.js') }}"></script>
+{% endblock %}

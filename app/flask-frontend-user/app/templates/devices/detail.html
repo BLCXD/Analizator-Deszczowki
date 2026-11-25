@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('Szczegóły urządzenia — Analizator Deszczówki') }}{% endblock %}
+
+{% block content %}
+<div class="ad-page">
+
+    <div class="ad-page-header">
+        <div class="ad-page-header-content">
+            <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: 4px;">
+                <a href="{{ url_for('devices.index') }}" class="ad-btn ad-btn-ghost ad-btn-sm" style="padding: 2px 8px;">
+                    ← {{ t('Wróć do listy') }}
+                </a>
+            </div>
+            <h1 class="ad-page-title" id="dev-detail-title">{{ t('Stacja pomiarowa') }} #{{ device_id }}</h1>
+            <p class="ad-page-subtitle" id="dev-detail-location">{{ t('Ładowanie parametrów stacji...') }}</p>
+        </div>
+        <div class="ad-page-header-actions">
+            <span class="ad-badge ad-badge--info" id="dev-detail-badge">
+                <span class="ad-status-dot ad-status-dot--checking"></span> {{ t('Sprawdzanie...') }}
+            </span>
+        </div>
+        <div class="ad-page-header-accent"></div>
+    </div>
+
+    <div class="ad-status-grid ad-stagger-1" style="margin-bottom: var(--space-5);">
+
+        <div class="ad-status-card">
+            <div class="ad-status-card-icon ad-status-card-icon--info">
+
+            </div>
+            <div class="ad-status-card-content">
+                <span class="ad-status-card-label">{{ t('Identyfikator sprzętowy') }}</span>
+                <span class="ad-status-card-value" style="font-size: 1.1rem; font-family: var(--ad-font-mono, monospace);" id="dev-hw-id">{{ device_id }}</span>
+            </div>
+        </div>
+
+        <div class="ad-status-card">
+            <div class="ad-status-card-icon ad-status-card-icon--success" id="dev-conn-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+                    <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+                    <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+                    <line x1="12" y1="20" x2="12.01" y2="20"></line>
+                </svg>
+            </div>
+            <div class="ad-status-card-content">
+                <span class="ad-status-card-label">{{ t('Stan połączenia') }}</span>
+                <span class="ad-status-card-value" id="dev-status-text">{{ t('Aktywny') }}</span>
+            </div>
+        </div>
+
+        <div class="ad-status-card">
+            <div class="ad-status-card-icon ad-status-card-icon--info">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+            </div>
+            <div class="ad-status-card-content">
+                <span class="ad-status-card-label">{{ t('Ostatni heartbeat') }}</span>
+                <span class="ad-status-card-value" style="font-size: 1.1rem;" id="dev-last-seen">--</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="ad-section ad-stagger-2">
+        <div class="ad-section-header">
+            <h2 class="ad-section-title">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 20V10"></path>
+                    <path d="M18 20V4"></path>
+                    <path d="M6 20v-4"></path>
+                </svg>
+                {{ t('Ostatni odczyt telemetrii') }}
+            </h2>
+            <span class="ad-section-meta" id="dev-measurement-time">{{ t('Odczyty z czujników ESP32') }}</span>
+        </div>
+
+        <div class="ad-measurements-grid">
+            <div class="ad-metric-card">
+                <div class="ad-metric-card-header">
+                    <span class="ad-metric-label">{{ t('Kwasowość pH') }}</span>
+                    <span class="ad-badge ad-badge--success" id="val-ph-badge">{{ t('Norma') }}</span>
+                </div>
+                <div class="ad-metric-value" id="val-ph">--</div>
+                <span class="ad-metric-unit">skala pH</span>
+            </div>
+
+            <div class="ad-metric-card">
+                <div class="ad-metric-card-header">
+                    <span class="ad-metric-label">{{ t('Mętność (EC)') }}</span>
+                    <span class="ad-badge ad-badge--success" id="val-turb-badge">{{ t('Czysta') }}</span>
+                </div>
+                <div class="ad-metric-value" id="val-turbidity">--</div>
+                <span class="ad-metric-unit">NTU</span>
+            </div>
+
+            <div class="ad-metric-card">
+                <div class="ad-metric-card-header">
+                    <span class="ad-metric-label">{{ t('Temperatura otoczenia') }}</span>
+                    <span class="ad-badge ad-badge--info">{{ t('Termistor') }}</span>
+                </div>
+                <div class="ad-metric-value" id="val-temp">--</div>
+                <span class="ad-metric-unit">°C</span>
+            </div>
+        </div>
+    </div>
+
+    <section class="ad-section" aria-labelledby="device-history-title">
+        <div class="ad-section-header">
+            <h2 class="ad-section-title" id="device-history-title">{{ t('Historia pomiarów') }}</h2>
+            <span class="ad-section-meta">{{ t('Kliknij odczyt, aby zobaczyć wszystkie zapisane wartości') }}</span>
+        </div>
+        <div class="ad-card">
+            <div class="ad-table-wrapper" id="device-history">
+                <p class="ad-text-secondary" role="status" style="text-align:center;padding:var(--space-4)">{{ t('Ładowanie historii…') }}</p>
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const deviceId = "{{ device_id }}";
+
+    function escapeHtml(value) {
+        const element = document.createElement('span');
+        element.textContent = value == null ? '—' : String(value);
+        return element.innerHTML;
+    }
+
+    function formatMeasurementValue(value, digits) {
+        const number = Number(value);
+        return value == null || value === '' || !Number.isFinite(number) ? '—' : number.toFixed(digits);
+    }
+
+    function loadHistory() {
+        const container = document.getElementById('device-history');
+        fetch('/measurements/api/history/' + encodeURIComponent(deviceId), { credentials: 'same-origin' })
+            .then(response => {
+                if (!response.ok) throw new Error('history');
+                return response.json();
+            })
+            .then(result => {
+                const measurements = result.measurements || [];
+                if (!measurements.length) {
+                    container.innerHTML = '<p class="ad-text-secondary" style="text-align:center;padding:var(--space-4)">{{ t('Brak zapisanych pomiarów.') }}</p>';
+                    return;
+                }
+                const rows = measurements.map((item, index) => {
+                    const id = 'measurement-details-' + index;
+                    const timestamp = item.measurement_time ? new Date(item.measurement_time).toLocaleString('pl-PL') : '—';
+                    const fields = [
+                        ['pH', formatMeasurementValue(item.water_quality_ph, 2)],
+                        ['{{ t('Mętność') }}', formatMeasurementValue(item.water_quality_turbidity, 2) + ' NTU'],
+                        ['{{ t('Przewodność') }}', formatMeasurementValue(item.ec, 2) + ' µS/cm'],
+                        ['{{ t('Temperatura') }}', formatMeasurementValue(item.temperature, 1) + ' °C'],
+                        ['{{ t('Wilgotność') }}', formatMeasurementValue(item.humidity, 1) + ' %'],
+                        ['{{ t('ID pomiaru') }}', item.measurement_id || item.id || '—']
+                    ];
+                    return `<tr class="ad-table-row"><td>${escapeHtml(timestamp)}</td><td>${escapeHtml(formatMeasurementValue(item.water_quality_ph, 2))}</td><td>${escapeHtml(formatMeasurementValue(item.water_quality_turbidity, 2))}</td><td>${escapeHtml(formatMeasurementValue(item.temperature, 1))} °C</td><td><button class="ad-btn ad-btn-ghost ad-btn-sm" type="button" aria-expanded="false" aria-controls="${id}" data-details="${id}">{{ t('Szczegóły') }}</button></td></tr><tr id="${id}" hidden><td colspan="5"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--space-3);padding:var(--space-3)">${fields.map(([label, value]) => `<div><span class="ad-text-secondary ad-text-sm">${escapeHtml(label)}</span><br><strong>${escapeHtml(value)}</strong></div>`).join('')}</div></td></tr>`;
+                }).join('');
+                container.innerHTML = `<table class="ad-table"><thead><tr><th>{{ t('Data i godzina') }}</th><th>pH</th><th>{{ t('Mętność') }}</th><th>{{ t('Temperatura') }}</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+            })
+            .catch(() => {
+                container.innerHTML = '<p class="ad-text-secondary" role="alert" style="text-align:center;padding:var(--space-4)">{{ t('Nie udało się pobrać historii pomiarów.') }}</p>';
+            });
+    }
+
+    document.getElementById('device-history').addEventListener('click', function(event) {
+        const button = event.target.closest('[data-details]');
+        if (!button) return;
+        const details = document.getElementById(button.dataset.details);
+        details.hidden = !details.hidden;
+        button.setAttribute('aria-expanded', String(!details.hidden));
+        button.textContent = details.hidden ? '{{ t('Szczegóły') }}' : '{{ t('Ukryj') }}';
+    });
+
+    function loadData() {
+        fetch('/measurements/api/latest/' + encodeURIComponent(deviceId))
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('val-ph').textContent = formatMeasurementValue(data.water_quality_ph, 2);
+                document.getElementById('val-turbidity').textContent = formatMeasurementValue(data.water_quality_turbidity, 2);
+                document.getElementById('val-temp').textContent = formatMeasurementValue(data.temperature, 1);
+
+                document.getElementById('dev-detail-badge').className = 'ad-badge ad-badge--success';
+                document.getElementById('dev-last-seen').textContent = data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : '{{ t('Przed chwilą') }}';
+                document.getElementById('dev-detail-location').textContent = '{{ t('Stacja pomiarowa online — dane synchronizowane w czasie rzeczywistym') }}';
+            })
+            .catch(() => {
+                document.getElementById('val-ph').textContent = '—';
+                document.getElementById('val-turbidity').textContent = '—';
+                document.getElementById('val-temp').textContent = '—';
+                document.getElementById('dev-detail-badge').className = 'ad-badge ad-badge--info';
+                document.getElementById('dev-last-seen').textContent = '{{ t('Brak danych') }}';
+            });
+    }
+
+    loadData();
+    loadHistory();
+    setInterval(loadData, 30000);
+});
+</script>
+{% endblock %}

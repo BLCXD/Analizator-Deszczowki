@@ -1,0 +1,187 @@
+"""Local ESP32 HTTP receiver and Raspberry Pi status page."""
+
+from __future__ import annotations
+
+import hmac
+import json
+import logging
+import math
+import re
+import threading
+from datetime import datetime, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from typing import Any
+from urllib.parse import urlsplit
+
+logger = logging.getLogger("ad_agent")
+SENSOR_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{1,64}$")
+MAX_REQUEST_BYTES = 4096
+
+
+class LocalGatewayServer:
+    def __init__(self, db, device_id: str, token: str, host: str, port: int, stale_after: int = 30):
+        if not device_id or len(token) < 32:
+            raise ValueError("DEVICE_ID and an ESP32_LOCAL_TOKEN of at least 32 characters are required")
+        self.db = db
+        self.device_id = device_id
+        self.token = token
+        self.stale_after = stale_after
+        self.lock = threading.Lock()
+        self.sensors: dict[str, dict[str, Any]] = {}
+        self.backend_connected: bool | None = None
+        self.last_sync: str | None = None
+        self.panel = Path(__file__).with_name("web") / "index.html"
+        self.login_page = Path(__file__).with_name("web") / "login.html"
+        owner = self
+
+        class Handler(BaseHTTPRequestHandler):
+            server_version = "ADLocalGateway"
+
+            def log_message(self, fmt, *args):
+                logger.info("Local gateway request: %s", fmt % args)
+
+            def _send(self, status: int, payload: bytes, content_type: str):
+                self.send_response(status)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(payload)))
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.send_header("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'")
+                self.end_headers()
+                self.wfile.write(payload)
+
+            def do_GET(self):
+                path = urlsplit(self.path).path
+                if path == "/":
+                    try:
+                        self._send(200, owner.panel.read_bytes(), "text/html; charset=utf-8")
+                    except OSError:
+                        self._send(503, b"Local panel is unavailable", "text/plain; charset=utf-8")
+                elif path == "/api/status":
+                    body = json.dumps(owner.status(), separators=(",", ":")).encode()
+                    self._send(200, body, "application/json; charset=utf-8")
+                else:
+                    self._send(404, b"Not found", "text/plain; charset=utf-8")
+
+            def do_POST(self):
+                if urlsplit(self.path).path != "/api/v1/readings":
+                    self._send(404, b'{"error":"not_found"}', "application/json")
+                    return
+                supplied = self.headers.get("X-ESP32-Token", "")
+                if not hmac.compare_digest(supplied, owner.token):
+                    self._send(401, b'{"error":"unauthorized"}', "application/json")
+                    return
+                try:
+                    length = int(self.headers.get("Content-Length", "0"))
+                    if length < 1 or length > MAX_REQUEST_BYTES:
+                        raise ValueError("invalid_content_length")
+                    payload = json.loads(self.rfile.read(length))
+                    measurement, sensor_id = owner._normalize(payload)
+                except (ValueError, TypeError, json.JSONDecodeError) as exc:
+                    body = json.dumps({"error": str(exc) or "invalid_reading"}).encode()
+                    self._send(400, body, "application/json")
+                    return
+
+                inserted = owner.db.add_measurement(measurement)
+                if not inserted and not owner.db.contains_measurement(measurement["measurement_id"]):
+                    self._send(503, b'{"error":"queue_unavailable"}', "application/json")
+                    return
+                owner._record_sensor(sensor_id, measurement)
+                if inserted:
+                    self._send(202, b'{"status":"queued"}', "application/json")
+                else:
+                    self._send(200, b'{"status":"duplicate"}', "application/json")
+
+        self.server = ThreadingHTTPServer((host, port), Handler)
+        self.server.daemon_threads = True
+        self.thread = threading.Thread(target=self.server.serve_forever, name="ad-local-gateway", daemon=True)
+
+    def start(self):
+        self.thread.start()
+        logger.info("Local sensor panel listening on %s:%s", *self.server.server_address[:2])
+
+    def close(self):
+        self.server.shutdown()
+        self.server.server_close()
+        if self.thread.is_alive():
+            self.thread.join(timeout=3)
+
+    def set_backend_connected(self, connected: bool):
+        self.backend_connected = bool(connected)
+
+    def _normalize(self, payload: Any) -> tuple[dict[str, Any], str]:
+        if not isinstance(payload, dict):
+            raise ValueError("reading_must_be_an_object")
+        sensor_id = payload.get("sensor_id")
+        measurement_id = payload.get("measurement_id")
+        if not isinstance(sensor_id, str) or not SENSOR_ID_PATTERN.fullmatch(sensor_id):
+            raise ValueError("invalid_sensor_id")
+        if not isinstance(measurement_id, str) or not 1 <= len(measurement_id) <= 64:
+            raise ValueError("invalid_measurement_id")
+
+        fields = {
+            "temperature": "temperature",
+            "ph": "water_quality_ph",
+            "ec": "ec",
+            "turbidity_ntu": "water_quality_turbidity",
+            "humidity": "humidity",
+            "rainfall_mm": "rainfall_mm",
+            "rainfall_1h_mm": "rainfall_1h_mm",
+        }
+        reading: dict[str, Any] = {}
+        for source, target in fields.items():
+            value = payload.get(source)
+            if value is None:
+                continue
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+                raise ValueError(f"invalid_{source}")
+            reading[target] = float(value)
+        if not reading:
+            raise ValueError("reading_has_no_numeric_measurements")
+
+        timestamp = datetime.now(timezone.utc).isoformat()
+        measurement = {
+            "measurement_id": measurement_id,
+            "device_id": self.device_id,
+            "timestamp": timestamp,
+            "raw_data": json.dumps(payload, separators=(",", ":")),
+            **reading,
+        }
+        return measurement, sensor_id
+
+    def _record_sensor(self, sensor_id: str, measurement: dict[str, Any]):
+        with self.lock:
+            sensor = self.sensors.setdefault(sensor_id, {})
+            sensor["last_seen"] = datetime.now(timezone.utc).isoformat()
+            sensor["latest"] = {
+                key: measurement[key]
+                for key in ("temperature", "water_quality_ph", "ec", "water_quality_turbidity", "rainfall_mm")
+                if key in measurement
+            }
+
+    def status(self) -> dict[str, Any]:
+        now = datetime.now(timezone.utc)
+        with self.lock:
+            sensors = []
+            for sensor_id, data in self.sensors.items():
+                last_seen = datetime.fromisoformat(data["last_seen"])
+                sensors.append({
+                    "sensor_id": sensor_id,
+                    "connected": (now - last_seen).total_seconds() <= self.stale_after,
+                    "last_seen": data["last_seen"],
+                    "latest": data["latest"],
+                })
+            backend_connected = self.backend_connected
+        return {
+            "device_id": self.device_id,
+            "backend_connected": backend_connected,
+            "internet_connected": backend_connected,
+            "lte_connected": backend_connected is True,
+            "agent_version": "1.0.0",
+            "firmware_version": None,
+            "last_sync": self.last_sync,
+            "queued_measurements": self.db.get_unsent_count(),
+            "sensors": sensors,
+            "updated_at": now.isoformat(),
+        }

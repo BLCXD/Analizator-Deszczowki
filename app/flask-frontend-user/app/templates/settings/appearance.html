@@ -1,0 +1,72 @@
+<div class="settings-content">
+    <div style="margin-bottom: var(--space-4);">
+        <h2 style="font-size: var(--font-size-heading-3, 1.5rem); margin-bottom: 4px;">{{ t('Wygląd i motyw') }}</h2>
+        <p class="ad-text-secondary ad-text-sm">{{ t('Dostosuj motyw wizualny, język i formaty prezentacji danych') }}</p>
+    </div>
+
+    <form class="settings-form">
+
+        </div>
+
+        <div class="ad-form-group" id="language" style="margin-bottom: var(--space-3);">
+            <label for="language-select" class="ad-label">{{ t('Język interfejsu') }}</label>
+            <div class="ad-select-wrapper">
+                <select class="ad-select" id="language-select" name="language" onchange="window.AD.setLanguage(this.value)">
+                    <option value="pl" {{ 'selected' if current_lang == 'pl' else '' }}>{{ t('Polski (PL)') }}</option>
+                    <option value="en" {{ 'selected' if current_lang == 'en' else '' }}>{{ t('English (EN)') }}</option>
+                </select>
+            </div>
+        </div>
+        <script>
+
+        if (window.location.hash === '#language') {
+            const group = document.getElementById('language');
+            const select = document.getElementById('language-select');
+            if (group) {
+                group.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                group.style.outline = '2px solid var(--color-accent, #E49D22)';
+                group.style.borderRadius = 'var(--radius-md, 8px)';
+                setTimeout(() => { if (group) group.style.outline = 'none'; }, 1800);
+            }
+            if (select) select.focus();
+            history.replaceState(null, '', window.location.pathname);
+        }
+        </script>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin-bottom: var(--space-4);">
+            <div class="ad-form-group">
+                <label for="date_format" class="ad-label">{{ t('Format daty') }}</label>
+                <div class="ad-select-wrapper">
+                    <select class="ad-select" id="date_format" name="date_format">
+                        <option value="YYYY-MM-DD" selected>{{ t('RRRR-MM-DD (2026-10-18)') }}</option>
+                        <option value="DD.MM.YYYY">{{ t('DD.MM.RRRR (18.10.2026)') }}</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="ad-form-group">
+                <label for="time_format" class="ad-label">{{ t('Format czasu') }}</label>
+                <div class="ad-select-wrapper">
+                    <select class="ad-select" id="time_format" name="time_format">
+                        <option value="HH:mm:ss" selected>{{ t('24h (14:30:00)') }}</option>
+                        <option value="hh:mm A">{{ t('12h (02:30 PM)') }}</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="ad-card" style="padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); background: rgba(255,255,255,0.02);">
+            <label style="display: flex; align-items: center; gap: var(--space-3); cursor: pointer;">
+                <input type="checkbox" id="chart_animation" name="chart_animation" value="true" checked style="accent-color: var(--color-accent, #E49D22); width: 18px; height: 18px;">
+                <div>
+                    <span style="font-weight: var(--font-weight-medium, 500); color: var(--color-text-primary, #D4F4FF);">{{ t('Płynne animacje wykresów i przejść') }}</span>
+                    <p class="ad-text-secondary ad-text-sm" style="margin: 2px 0 0 0;">{{ t('Wykorzystuje sprzętową akcelerację GPU i krzywe easingowe Apple') }}</p>
+                </div>
+            </label>
+        </div>
+
+        <div style="display: flex; gap: var(--space-2); margin-top: var(--space-5);">
+            <button type="submit" class="ad-btn ad-btn-primary">{{ t('Zapisz ustawienia wyglądu') }}</button>
+        </div>
+    </form>
+</div>

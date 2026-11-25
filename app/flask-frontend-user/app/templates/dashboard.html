@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('Dashboard — Analizator Deszczówki') }}{% endblock %}
+
+{% block content %}
+<div class="ad-page">
+
+    <div class="ad-page-header">
+        <div class="ad-page-header-inner">
+            <div class="ad-page-header-content">
+                <h1 class="ad-page-title">{{ t('Dashboard') }}</h1>
+                <p class="ad-page-subtitle">
+                    {% if user %}{{ t('Witaj, ') }}{{ user.email|capitalize }}{% else %}{{ t('Przegląd systemu') }}{% endif %}
+                    {% if demo_mode %}<span class="ad-badge ad-badge--warning">{{ t('DEMO') }}</span>{% endif %}
+                </p>
+                <p class="ad-page-subtitle">
+                {% if lang == 'pl' %}Jeżeli chcesz zmienić język kliknij <a class="ad-link" href="{{ url_for('settings.appearance') }}#language">{{ t('tutaj') }}</a>
+                {% else %}If you want to change the language click <a class="ad-link" href="{{ url_for('settings.appearance') }}#language">{{ t('here') }}</a>{% endif %}
+                </p>
+            </div>
+            <div class="ad-page-header-actions">
+                <label class="ad-dev-mode-toggle" for="btnToggle" title="{{ t('Dev Mode') }}">
+                    <span>{{ t('Dev Mode') }}</span>
+                    <input type="checkbox" id="btnToggle" name="btnToggle" {% if session.get('user_settings', {}).get('dev_mode', false) %}checked{% endif %} />
+                    <span class="ad-dev-mode-switch" aria-hidden="true"></span>
+                </label>
+                <button class="ad-btn ad-btn-ghost ad-btn-sm" onclick="location.reload()" title="{{ t('Odśwież dane') }}">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="23 4 23 10 17 10"></polyline>
+                        <polyline points="1 20 1 14 7 14"></polyline>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                    </svg>
+                    <span>{{ t('Odśwież') }}</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <section class="ad-section" aria-label="{{ t('Urządzenia') }}">
+        <div class="ad-section-header">
+            <h2 class="ad-section-title">
+
+                {{ t('Urządzenia') }}
+            </h2>
+        </div>
+
+        {% if devices %}
+        <div class="ad-devices-grid">
+            {% for device in devices %}
+            <div class="ad-device-card ad-stagger-{{ loop.index0 % 4 + 1 }}">
+                <div class="ad-device-header">
+                    <div>
+                        <h3 class="ad-device-name">
+                            {% if device.device_id %}
+                            <a href="{{ url_for('devices.detail', device_id=device.device_id) }}">{{ device.name }}</a>
+                            {% else %}
+                            {{ device.name }}
+                            {% endif %}
+                        </h3>
+                        {% if device.location %}
+                        <div class="ad-device-location">{{ device.location }}</div>
+                        {% endif %}
+                    </div>
+                    <span class="ad-badge ad-badge--{{ 'success' if device.online else 'neutral' }}">
+                        <span class="ad-status-dot ad-status-dot--{{ 'online' if device.online else 'offline' }}"></span>
+                        {{ t('Online') if device.online else t('Offline') }}
+                    </span>
+                </div>
+
+                {% if device.latest_measurement %}
+                <div class="ad-device-measurements">
+                    <div class="ad-metric-row">
+
+                        <div class="ad-metric-col">
+                            <span class="ad-metric-label">pH</span>
+                            <div class="ad-metric-value" data-value="{{ '%.2f'|format(device.latest_measurement.water_quality_ph) if device.latest_measurement.water_quality_ph is not none else '' }}">
+                                {{ "%.2f"|format(device.latest_measurement.water_quality_ph) if device.latest_measurement.water_quality_ph is not none else '--' }}
+                            </div>
+                            <span class="ad-metric-unit">{{ t('jednostki') }}</span>
+                            {% if device.latest_measurement.water_quality_ph is none %}
+                            <span class="ad-badge ad-badge--neutral">{{ t('brak danych') }}</span>
+                            {% elif device.latest_measurement.water_quality_ph >= 6.0 and device.latest_measurement.water_quality_ph <= 8.0 %}
+                            <span class="ad-badge ad-badge--success">{{ t('w normie') }}</span>
+                            {% else %}
+                            <span class="ad-badge ad-badge--warning">{{ t('sprawdź') }}</span>
+                            {% endif %}
+                        </div>
+
+                        <div class="ad-metric-col">
+                            <span class="ad-metric-label">{{ t('Mętność (EC)') }}</span>
+                            <div class="ad-metric-value" data-value="{{ '%.2f'|format(device.latest_measurement.water_quality_turbidity) if device.latest_measurement.water_quality_turbidity is not none else '' }}">
+                                {{ "%.2f"|format(device.latest_measurement.water_quality_turbidity) if device.latest_measurement.water_quality_turbidity is not none else '--' }}
+                            </div>
+                            <span class="ad-metric-unit">NTU</span>
+                            {% if device.latest_measurement.water_quality_turbidity is none %}
+                            <span class="ad-badge ad-badge--neutral">{{ t('brak danych') }}</span>
+                            {% elif device.latest_measurement.water_quality_turbidity <= 5.0 %}
+                            <span class="ad-badge ad-badge--success">{{ t('czysta') }}</span>
+                            {% else %}
+                            <span class="ad-badge ad-badge--warning">{{ t('mętna') }}</span>
+                            {% endif %}
+                        </div>
+
+                        <div class="ad-metric-col">
+                            <span class="ad-metric-label">{{ t('Temperatura') }}</span>
+                            <div class="ad-metric-value" data-value="{{ '%.1f'|format(device.latest_measurement.temperature) if device.latest_measurement.temperature is not none else '' }}">
+                                {{ "%.1f"|format(device.latest_measurement.temperature) if device.latest_measurement.temperature is not none else '--' }}
+                            </div>
+                            <span class="ad-metric-unit">°C</span>
+                            {% if device.latest_measurement.temperature is none %}
+                            <span class="ad-badge ad-badge--neutral">{{ t('brak danych') }}</span>
+                            {% elif device.latest_measurement.temperature >= 0 and device.latest_measurement.temperature <= 30 %}
+                            <span class="ad-badge ad-badge--success">{{ t('optymalna') }}</span>
+                            {% else %}
+                            <span class="ad-badge ad-badge--warning">{{ t('sprawdź') }}</span>
+                            {% endif %}
+                        </div>
+
+                        <div class="ad-metric-col">
+                            <span class="ad-metric-label">{{ t('Wilgotność') }}</span>
+                            <div class="ad-metric-value" data-value="{{ '%.1f'|format(device.latest_measurement.humidity) if device.latest_measurement.humidity is not none else '' }}">
+                                {{ "%.1f"|format(device.latest_measurement.humidity) if device.latest_measurement.humidity is not none else '--' }}
+                            </div>
+                            <span class="ad-metric-unit">%</span>
+                            {% if device.latest_measurement.humidity is none %}
+                            <span class="ad-badge ad-badge--neutral">{{ t('brak danych') }}</span>
+                            {% elif device.latest_measurement.humidity >= 30 and device.latest_measurement.humidity <= 70 %}
+                            <span class="ad-badge ad-badge--success">{{ t('w normie') }}</span>
+                            {% else %}
+                            <span class="ad-badge ad-badge--warning">{{ t('sprawdź') }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="ad-device-no-data">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 20V10"></path>
+                        <path d="M18 20V4"></path>
+                        <path d="M6 20v-4"></path>
+                    </svg>
+                    <p>{{ t('Brak danych pomiarowych') }}</p>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="ad-empty-state">
+            <div class="ad-empty-state-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 20V10"></path>
+                    <path d="M18 20V4"></path>
+                    <path d="M6 20v-4"></path>
+                </svg>
+            </div>
+            <h3 class="ad-empty-state-title">{{ t('Brak stacji pomiarowej') }}</h3>
+            <p class="ad-empty-state-text">{{ t('Do zbierania odczytów potrzebna jest fizyczna stacja AD: ESP32 oraz przygotowane Raspberry Pi. Urządzenie dodaje administrator systemu — skontaktuj się z nami, aby podłączyć swoją stację.') }}</p>
+        </div>
+        {% endif %}
+    </section>
+
+</div>
+{% endblock %}

@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('Urządzenia pomiarowe') }}{% endblock %}
+
+{% block content %}
+<div class="ad-page" id="devices-page" data-csrf-token="{{ session.get('device_form_csrf', '') }}" data-mock-enabled="{{ 'true' if mock_enabled else 'false' }}">
+
+    <div class="ad-page-header">
+        <div class="ad-page-header-content">
+            <h1 class="ad-page-title">{{ t('Urządzenia pomiarowe') }}</h1>
+            <p class="ad-page-subtitle">{{ t('Zarządzanie stacjami badawczymi IoT i telemetrią') }}</p>
+        </div>
+        <div class="ad-page-header-accent"></div>
+    </div>
+
+    {% if request.args.get('created') == '1' %}
+    <div class="ad-alert ad-alert--success" role="status">
+        <div class="ad-alert-icon" aria-hidden="true">✓</div>
+        <span class="ad-alert-message">{{ t('Urządzenie zostało dodane. Możesz teraz skonfigurować je do wysyłania pomiarów.') }}</span>
+    </div>
+    {% endif %}
+
+    <div class="ad-status-grid ad-stagger-1" style="margin-bottom: var(--space-4);">
+        <div class="ad-status-card">
+            <div class="ad-status-card-icon ad-status-card-icon--info">
+
+            </div>
+            <div class="ad-status-card-content">
+                <span class="ad-status-card-label">{{ t('Wszystkie stacje') }}</span>
+                <span class="ad-status-card-value" id="stats-total-devices">0</span>
+            </div>
+        </div>
+
+        <div class="ad-status-card">
+            <div class="ad-status-card-icon ad-status-card-icon--success">
+
+            </div>
+            <div class="ad-status-card-content">
+                <span class="ad-status-card-label">{{ t('Aktywne (Online)') }}</span>
+                <span class="ad-status-card-value" id="stats-online-devices">0</span>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="ad-card ad-stagger-2">
+        <div class="ad-table-wrapper">
+            <table class="ad-table" id="devices-table">
+                <thead>
+                    <tr>
+                        <th>{{ t('Nazwa urządzenia') }}</th>
+                        <th>{{ t('Lokalizacja') }}</th>
+                        <th>{{ t('Status') }}</th>
+                        <th>{{ t('Ostatnia aktywność') }}</th>
+                        <th style="text-align: right;">{{ t('Akcje') }}</th>
+                    </tr>
+                </thead>
+                <tbody id="devices-table-body">
+
+                </tbody>
+            </table>
+        </div>
+
+        <div id="devices-loading" style="padding: var(--space-6); text-align: center; display: none;">
+            <div class="ad-spinner" style="width: 36px; height: 36px; margin: 0 auto var(--space-2);"></div>
+            <span class="ad-text-secondary ad-text-sm">{{ t('Odświeżanie listy urządzeń...') }}</span>
+        </div>
+
+        <div id="devices-error" style="padding: var(--space-5); display: none;">
+            <div class="ad-alert ad-alert-error" role="alert" style="margin: 0;">
+                <div class="ad-alert-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                </div>
+                <span class="ad-alert-message" id="devices-error-text">{{ t('Nie udało się pobrać listy urządzeń.') }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    initDevicesPage();
+});
+
+function initDevicesPage() {
+    const devicesPage = document.getElementById('devices-page');
+    const tableBody = document.getElementById('devices-table-body');
+    const loadingEl = document.getElementById('devices-loading');
+    const errorEl = document.getElementById('devices-error');
+    const errorText = document.getElementById('devices-error-text');
+    const totalEl = document.getElementById('stats-total-devices');
+    const onlineEl = document.getElementById('stats-online-devices');
+
+    function showLoading() {
+        if (loadingEl) loadingEl.style.display = 'block';
+        if (errorEl) errorEl.style.display = 'none';
+    }
+
+    function hideLoading() {
+        if (loadingEl) loadingEl.style.display = 'none';
+    }
+
+    function showError(msg) {
+        if (errorEl) {
+            errorEl.style.display = 'block';
+            if (errorText) errorText.textContent = msg;
+        }
+    }
+
+    function renderDevices(devices) {
+        tableBody.innerHTML = '';
+
+        if (!devices || devices.length === 0) {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td colspan="6" style="text-align: center; padding: var(--space-6); color: var(--color-text-secondary, #B0BEC5);">
+                    {{ t('Brak podłączonych urządzeń. Urządzenia są dodawane przez administratora systemu. Skontaktuj się z nami, aby dodać swoją stację pomiarową.')|safe }}
+                </td>
+            `;
+            tableBody.appendChild(row);
+            totalEl.textContent = '0';
+            onlineEl.textContent = '0';
+            return;
+        }
+
+        let onlineCount = 0;
+
+        devices.forEach(dev => {
+            const status = dev.status || (dev.is_active ? 'unknown' : 'offline');
+            const isOnline = status === 'online';
+            if (isOnline) onlineCount++;
+
+            const tr = document.createElement('tr');
+            tr.className = 'ad-table-row';
+
+            const devId = dev.device_id || dev.id;
+            const detailUrl = '/devices/' + encodeURIComponent(devId);
+
+            tr.innerHTML = `
+                <td>
+                    <span class="ad-device-name" style="font-weight: var(--font-weight-semibold, 600);">${escapeHtml(dev.name || 'Stacja #' + devId)}</span>
+                </td>
+                <td class="ad-text-secondary">${escapeHtml(dev.location || window.AD.t('Lokalizacja nieokreślona'))}</td>
+                <td>
+                    <span class="ad-badge ${isOnline ? 'ad-badge--success' : status === 'unknown' ? 'ad-badge--warning' : 'ad-badge--error'}">
+                        <span class="ad-status-dot ${isOnline ? 'ad-status-dot--online' : 'ad-status-dot--offline'}"></span>
+                        ${isOnline ? 'Online' : status === 'unknown' ? 'Oczekuje na pierwszy kontakt' : 'Offline'}
+                    </span>
+                </td>
+                <td class="ad-text-secondary ad-text-sm">${dev.last_seen || 'Nigdy'}</td>
+                <td style="text-align: right;">
+                    <a href="${detailUrl}" class="ad-btn ad-btn-ghost ad-btn-sm">
+                        ${window.AD.t('Szczegóły')}
+                    </a>
+                    <button type="button" class="ad-btn ad-btn-ghost ad-btn-sm ad-device-unpair" data-device-id="${escapeHtml(dev.device_id || dev.id)}" data-device-name="${escapeHtml(dev.name || window.AD.t('urządzenie'))}">
+                        ${window.AD.t('Odłącz')}
+                    </button>
+                    <button type="button" class="ad-btn ad-btn-ghost ad-btn-sm ad-device-delete" data-device-id="${escapeHtml(dev.device_id || dev.id)}" data-device-name="${escapeHtml(dev.name || window.AD.t('urządzenie'))}">
+                        ${window.AD.t('Usuń')}
+                    </button>
+                    ${dev.mock_agent_known ? `<button type="button" class="ad-btn ad-btn-ghost ad-btn-sm ad-mock-toggle" data-device-id="${escapeHtml(devId)}" data-running="${dev.mock_running ? 'true' : 'false'}">${dev.mock_running ? window.AD.t('Zatrzymaj mock') : window.AD.t('Uruchom mock')}</button>` : ''}
+                </td>
+            `;
+
+            tableBody.appendChild(tr);
+        });
+
+        totalEl.textContent = devices.length;
+        onlineEl.textContent = onlineCount;
+    }
+
+    function fetchDevices() {
+        showLoading();
+        fetch('/devices/api/list')
+            .then(res => {
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                return res.json();
+            })
+            .then(data => {
+                hideLoading();
+                renderDevices(data.devices || []);
+            })
+            .catch(err => {
+                hideLoading();
+                showError(window.AD.t('Nie można pobrać listy urządzeń: ') + err.message);
+            });
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    async function deleteDevice(deviceId, deviceName, button) {
+        if (!window.confirm(window.AD.t('Czy na pewno usunąć ') + deviceName + window.AD.t('?'))) return;
+        button.disabled = true;
+        try {
+            const response = await fetch('/devices/api/' + encodeURIComponent(deviceId), {
+                method: 'DELETE',
+                headers: {Accept: 'application/json'}
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.error || 'HTTP ' + response.status);
+            fetchDevices();
+            if (window.AD && window.AD.Toast) {
+                window.AD.Toast.show(window.AD.t('Urządzenie zostało usunięte.'), 'success');
+            }
+        } catch (error) {
+            button.disabled = false;
+            if (window.AD && window.AD.Toast) {
+                window.AD.Toast.show(window.AD.t('Nie udało się usunąć urządzenia: ') + error.message, 'error');
+            }
+        }
+    }
+
+    async function unpairDevice(deviceId, deviceName, button) {
+        if (!window.confirm(window.AD.t('Czy na pewno odłączyć ') + deviceName + window.AD.t('? To unieważni jego dostęp do serwera.') )) return;
+        button.disabled = true;
+        try {
+            const response = await fetch('/devices/api/unpair/' + encodeURIComponent(deviceId), {
+                method: 'POST',
+                headers: {Accept: 'application/json'}
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.error || 'HTTP ' + response.status);
+            fetchDevices();
+            if (window.AD && window.AD.Toast) {
+                window.AD.Toast.show(window.AD.t('Urządzenie zostało odłączone.'), 'success');
+            }
+        } catch (error) {
+            button.disabled = false;
+            if (window.AD && window.AD.Toast) {
+                window.AD.Toast.show(window.AD.t('Nie udało się odłączyć urządzenia: ') + error.message, 'error');
+            }
+        }
+    }
+
+    async function toggleMock(button) {
+        const deviceId = button.dataset.deviceId;
+        const running = button.dataset.running === 'true';
+        button.disabled = true;
+        try {
+            const response = await fetch(`/devices/api/mock/${running ? 'stop' : 'start'}/${encodeURIComponent(deviceId)}`, {
+                method: 'POST',
+                headers: {'X-CSRF-Token': devicesPage.dataset.csrfToken, Accept: 'application/json'},
+            });
+            const data = await response.json();
+            if (data.csrf_token) devicesPage.dataset.csrfToken = data.csrf_token;
+            if (!response.ok) throw new Error(data.error || window.AD.t('Nie udało się zmienić stanu mocka.'));
+            fetchDevices();
+        } catch (error) {
+            button.disabled = false;
+            if (window.AD && window.AD.Toast) window.AD.Toast.show(error.message, 'error');
+        }
+    }
+
+    tableBody.addEventListener('click', function(event) {
+        const unpairButton = event.target.closest('.ad-device-unpair');
+        if (unpairButton) return unpairDevice(unpairButton.dataset.deviceId, unpairButton.dataset.deviceName, unpairButton);
+        const mockButton = event.target.closest('.ad-mock-toggle');
+        if (mockButton) return toggleMock(mockButton);
+        const deleteButton = event.target.closest('.ad-device-delete');
+        if (deleteButton) deleteDevice(deleteButton.dataset.deviceId, deleteButton.dataset.deviceName, deleteButton);
+    });
+
+    fetchDevices();
+    setInterval(fetchDevices, 30000);
+}
+</script>
+{% endblock %}

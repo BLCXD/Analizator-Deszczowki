@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('Ustawienia systemowe — Analizator Deszczówki') }}{% endblock %}
+
+{% block content %}
+<div class="ad-page">
+
+    <div class="ad-page-header">
+        <div class="ad-page-header-content">
+            <h1 class="ad-page-title">{{ t('Ustawienia systemowe') }}</h1>
+            <p class="ad-page-subtitle">{{ t('Zarządzaj kontem, preferencjami i połączeniem z API') }}</p>
+        </div>
+        <div class="ad-page-header-accent"></div>
+    </div>
+
+    <div class="ad-settings-layout ad-stagger-1" style="display: grid; grid-template-columns: minmax(200px, 240px) 1fr; gap: var(--space-5); align-items: start;">
+
+        <nav class="ad-card" style="padding: var(--space-2); display: flex; flex-direction: column; gap: 4px;" aria-label="{{ t('Kategorie ustawień') }}">
+            <a href="{{ url_for('settings.profile') }}" class="ad-nav-link {% if active_settings == 'profile' %}ad-nav-link--active{% endif %}" style="display: flex; align-items: center; gap: var(--space-3); padding: 10px 14px; border-radius: var(--radius-md, 8px);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                <span>{{ t('Profil') }}</span>
+            </a>
+            <a href="{{ url_for('settings.devices') }}" class="ad-nav-link {% if active_settings == 'devices' %}ad-nav-link--active{% endif %}" style="display: flex; align-items: center; gap: var(--space-3); padding: 10px 14px; border-radius: var(--radius-md, 8px);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect></svg>
+                <span>{{ t('Urządzenia') }}</span>
+            </a>
+            <a href="{{ url_for('settings.notifications') }}" class="ad-nav-link {% if active_settings == 'notifications' %}ad-nav-link--active{% endif %}" style="display: flex; align-items: center; gap: var(--space-3); padding: 10px 14px; border-radius: var(--radius-md, 8px);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                <span>{{ t('Powiadomienia') }}</span>
+            </a>
+            <a href="{{ url_for('settings.appearance') }}" class="ad-nav-link {% if active_settings == 'appearance' %}ad-nav-link--active{% endif %}" style="display: flex; align-items: center; gap: var(--space-3); padding: 10px 14px; border-radius: var(--radius-md, 8px);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a10 10 0 0 1 10 10c0 5.52-4.48 10-10 10"></path></svg>
+                <span>{{ t('Wygląd') }}</span>
+            </a>
+            {% if session.get('user_settings', {}).get('dev_mode', false) %}
+            <a href="{{ url_for('settings.api_settings') }}" class="ad-nav-link {% if active_settings == 'api' %}ad-nav-link--active{% endif %}" style="display: flex; align-items: center; gap: var(--space-3); padding: 10px 14px; border-radius: var(--radius-md, 8px);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+                <span>{{ t('API i Połączenie') }}</span>
+            </a>
+            {% endif %}
+        </nav>
+
+        <div class="ad-card" style="padding: var(--space-5);">
+            <div id="settings-alert-container"></div>
+            {% if active_settings == 'profile' %}
+                {% include 'settings/profile.html' %}
+            {% elif active_settings == 'devices' %}
+                {% include 'settings/devices.html' %}
+            {% elif active_settings == 'notifications' %}
+                {% include 'settings/notifications.html' %}
+            {% elif active_settings == 'appearance' %}
+                {% include 'settings/appearance.html' %}
+            {% elif active_settings == 'api' %}
+                {% include 'settings/api.html' %}
+            {% else %}
+                {% include 'settings/profile.html' %}
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', async function() {
+    const settingsForms = document.querySelectorAll('.settings-form');
+    settingsForms.forEach(form => {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const action = form.getAttribute('action') || window.location.pathname;
+            const formData = new FormData(form);
+
+            fetch(action, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(Object.fromEntries(formData))
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (window.AD && window.AD.Toast) {
+                    window.AD.Toast.show(data.message || '{{ t('Ustawienia zapisane pomyślnie.') }}', 'success');
+                } else {
+                    alert('{{ t('Ustawienia zapisane pomyślnie.') }}');
+                }
+            })
+            .catch(() => {
+                if (window.AD && window.AD.Toast) {
+                    window.AD.Toast.show('{{ t('Ustawienia zapisane lokalnie.') }}', 'success');
+                }
+            });
+        });
+    });
+
+    const testApiBtn = document.getElementById('test-api-connection');
+    if (testApiBtn) {
+        testApiBtn.addEventListener('click', function() {
+            testApiBtn.disabled = true;
+            testApiBtn.textContent = '{{ t('Sprawdzanie...') }}';
+            fetch('/settings/api/test-connection', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(res => res.json())
+            .then(data => {
+                testApiBtn.disabled = false;
+                testApiBtn.textContent = '{{ t('Test połączenia') }}';
+                if (window.AD && window.AD.Toast) {
+                    window.AD.Toast.show(data.message || '{{ t('Połączenie z API aktywne.') }}', data.success ? 'success' : 'error');
+                }
+            })
+            .catch(err => {
+                testApiBtn.disabled = false;
+                testApiBtn.textContent = '{{ t('Test połączenia') }}';
+                if (window.AD && window.AD.Toast) {
+                    window.AD.Toast.show('{{ t('Brak odpowiedzi z serwera API.') }}', 'error');
+                }
+            });
+        });
+    }
+
+    const diagnosticsBtn = document.getElementById('run-dev-diagnostics');
+    if (diagnosticsBtn) {
+        diagnosticsBtn.addEventListener('click', async function () {
+            diagnosticsBtn.disabled = true;
+            diagnosticsBtn.textContent = '{{ t('Sprawdzanie...') }}';
+            const backendStatus = document.getElementById('dev-backend-status');
+            const websocketStatus = document.getElementById('dev-websocket-status');
+            const lastCheck = document.getElementById('dev-last-check');
+            try {
+                const response = await fetch('/settings/api/diagnostics', {headers: {Accept: 'application/json'}});
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || '{{ t('Nie można pobrać diagnostyki') }}');
+                backendStatus.textContent = data.backend + (data.status_code ? ' (' + data.status_code + ')' : '');
+                backendStatus.dataset.state = data.backend;
+
+                const wsUrl = data.websocket_url;
+                document.getElementById('dev-websocket-url').textContent = wsUrl;
+                await new Promise((resolve) => {
+                    let settled = false;
+                    const socket = new WebSocket(wsUrl);
+                    const finish = (state) => {
+                        if (settled) return;
+                        settled = true;
+                        websocketStatus.textContent = state;
+                        websocketStatus.dataset.state = state === 'connected' ? 'connected' : 'offline';
+                        socket.close();
+                        resolve();
+                    };
+                    socket.onopen = () => finish('connected');
+                    socket.onerror = () => finish('offline');
+                    setTimeout(() => finish('timeout'), 3000);
+                });
+                lastCheck.textContent = new Date().toLocaleTimeString('pl-PL');
+            } catch (error) {
+                backendStatus.textContent = 'offline';
+                backendStatus.dataset.state = 'offline';
+                websocketStatus.textContent = 'not checked';
+                websocketStatus.dataset.state = 'offline';
+            } finally {
+                diagnosticsBtn.disabled = false;
+                diagnosticsBtn.textContent = '{{ t('Sprawdź połączenia') }}';
+            }
+        });
+    }
+
+    const pushCheckbox = document.getElementById('push_notifications');
+    if (pushCheckbox && 'PushManager' in window) {
+
+      const settings = await (await fetch('/settings/api/config')).json();
+      pushCheckbox.checked = !!settings.push_notifications;
+
+      let swRegistration = null;
+
+      function urlBase64ToUint8Array(base64String) {
+        const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+        const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+        const raw = atob(base64);
+        const output = new Uint8Array(raw.length);
+        for (let i = 0; i < raw.length; i++) {
+          output[i] = raw.charCodeAt(i);
+        }
+        return output;
+      }
+
+      async function ensureServiceWorker() {
+        if (!swRegistration) {
+          swRegistration = await navigator.serviceWorker.register('/settings/push-sw.js', { scope: '/' });
+        }
+        return swRegistration;
+      }
+
+      function keyToBase64(key) {
+        if (!key) return '';
+        return btoa(String.fromCharCode.apply(null, new Uint8Array(key)));
+      }
+
+      async function saveSubscription(endpoint, p256dh, auth) {
+        await fetch('/settings/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint, p256dh_key: p256dh, auth_key: auth }),
+        });
+      }
+
+      async function removeSubscription(endpoint) {
+        await fetch('/settings/push/subscribe', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint }),
+        });
+      }
+
+      async function enablePush() {
+        const registration = await ensureServiceWorker();
+        const resp = await fetch('/settings/push/vapid-public-key');
+        const data = await resp.json();
+        const subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(data.public_key),
+        });
+        await saveSubscription(
+          subscription.endpoint,
+          keyToBase64(subscription.getKey('p256dh')),
+          keyToBase64(subscription.getKey('auth'))
+        );
+      }
+
+      async function disablePush() {
+        const registration = await ensureServiceWorker();
+        const subscription = await registration.pushManager.getSubscription();
+        if (subscription) {
+          await removeSubscription(subscription.endpoint);
+          await subscription.unsubscribe();
+        }
+      }
+
+      pushCheckbox.addEventListener('change', async function () {
+        const enabled = this.checked;
+        this.disabled = true;
+        try {
+          if (enabled) {
+            await enablePush();
+          } else {
+            await disablePush();
+          }
+
+          await fetch('/settings/api/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ push_notifications: enabled }),
+          });
+          if (window.AD && window.AD.Toast) {
+            window.AD.Toast.show(enabled ? 'Powiadomienia push włączone.' : 'Powiadomienia push wyłączone.', 'success');
+          }
+        } catch (err) {
+          this.checked = !enabled;
+          console.error('Push settings update failed:', err);
+          if (window.AD && window.AD.Toast) {
+            window.AD.Toast.show(`Nie udało się zmienić ustawień push: ${err.message}`, 'error');
+          }
+        } finally {
+          this.disabled = false;
+        }
+      });
+    }
+});
+</script>
+{% endblock %}

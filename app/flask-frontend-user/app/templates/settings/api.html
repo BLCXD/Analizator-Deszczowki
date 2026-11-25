@@ -1,0 +1,62 @@
+<div class="settings-content">
+    <div style="margin-bottom: var(--space-4);">
+        <h2 style="font-size: var(--font-size-heading-3, 1.5rem); margin-bottom: 4px;">{{ t('Konfiguracja API Backend') }}</h2>
+        <p class="ad-text-secondary ad-text-sm">{{ t('Ustawienia adresu serwera FastAPI i parametrów sieciowych') }}</p>
+    </div>
+
+    <div class="ad-card ad-dev-diagnostics" style="padding: var(--space-4); margin-bottom: var(--space-4); border-color: rgba(228,157,34,0.45);">
+        <div style="display: flex; justify-content: space-between; gap: var(--space-3); align-items: flex-start; margin-bottom: var(--space-3);">
+            <div>
+                <h3 style="margin: 0 0 4px;">{{ t('Diagnostyka deweloperska') }}</h3>
+                <p class="ad-text-secondary ad-text-sm" style="margin: 0;">{{ t('Widoczna tylko przy włączonym Dev Mode.') }}</p>
+            </div>
+            <span class="ad-badge ad-badge--warning">DEV</span>
+        </div>
+        <dl class="ad-dev-diagnostics-grid">
+            <div><dt>{{ t('Backend API') }}</dt><dd id="dev-backend-url">{{ api_base_url or 'http://localhost:8000' }}</dd></div>
+            <div><dt>{{ t('WebSocket') }}</dt><dd id="dev-websocket-url">{{ websocket_url or 'ws://localhost:8000/api/v1/measurements/ws' }}</dd></div>
+            <div><dt>{{ t('Status API') }}</dt><dd id="dev-backend-status">{{ t('Nie sprawdzono') }}</dd></div>
+            <div><dt>{{ t('Status WebSocket') }}</dt><dd id="dev-websocket-status">{{ t('Nie sprawdzono') }}</dd></div>
+            <div><dt>{{ t('Ostatnie sprawdzenie') }}</dt><dd id="dev-last-check">{{ t('Nigdy') }}</dd></div>
+        </dl>
+        <button type="button" class="ad-btn ad-btn-secondary ad-btn-sm" id="run-dev-diagnostics">{{ t('Sprawdź połączenia') }}</button>
+    </div>
+
+    <form class="settings-form" id="api-settings-form">
+        <div class="ad-form-group" style="margin-bottom: var(--space-3);">
+            <label for="api_url" class="ad-label">{{ t('Adres bazowy API (FastAPI)') }}</label>
+            <input type="url" class="ad-input" id="api_url" name="api_url" value="{{ api_base_url or 'http://localhost:8000' }}" required placeholder="http://localhost:8000">
+            <span class="ad-text-secondary ad-text-sm" style="display: block; margin-top: 4px;">{{ t('Domyślny port FastAPI dla środowiska deweloperskiego to 8000.') }}</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin-bottom: var(--space-4);">
+            <div class="ad-form-group">
+                <label for="api_timeout" class="ad-label">{{ t('Timeout żądania (sekundy)') }}</label>
+                <input type="number" class="ad-input" id="api_timeout" name="api_timeout" min="1" max="60" value="10">
+            </div>
+
+            <div class="ad-form-group">
+                <label for="api_retries" class="ad-label">{{ t('Liczba ponowień (retries)') }}</label>
+                <input type="number" class="ad-input" id="api_retries" name="api_retries" min="0" max="5" value="3">
+            </div>
+        </div>
+
+        <div class="ad-card" style="padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); background: rgba(255,255,255,0.02);">
+            <label style="display: flex; align-items: center; gap: var(--space-3); cursor: pointer;">
+                <input type="checkbox" id="enable_ssl_verification" name="enable_ssl_verification" value="true" checked style="accent-color: var(--color-accent, #E49D22); width: 18px; height: 18px;">
+                <div>
+                    <span style="font-weight: 500; color: var(--color-text-primary, #D4F4FF);">{{ t('Weryfikacja certyfikatów SSL/TLS') }}</span>
+                    <p class="ad-text-secondary ad-text-sm" style="margin: 2px 0 0 0;">{{ t('Wyłączaj wyłącznie w lokalnym środowisku testowym') }}</p>
+                </div>
+            </label>
+        </div>
+
+        <div style="display: flex; gap: var(--space-2); align-items: center; margin-top: var(--space-5);">
+            <button type="submit" class="ad-btn ad-btn-primary">{{ t('Zapisz konfigurację') }}</button>
+            <button type="button" class="ad-btn ad-btn-secondary" id="test-api-connection">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                <span>{{ t('Test połączenia') }}</span>
+            </button>
+        </div>
+    </form>
+</div>

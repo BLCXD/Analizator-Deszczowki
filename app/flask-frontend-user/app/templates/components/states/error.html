@@ -1,0 +1,22 @@
+<div class="ad-empty-state">
+    <div class="ad-empty-state-icon" style="color: var(--ad-error, var(--color-status-error, #F44336));">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+    </div>
+    <h3 class="ad-empty-state-title">{{ t('Wystąpił błąd') }}</h3>
+    <p class="ad-empty-state-text">{{ t(message or 'Nie udało się załadować danych. Spróbuj ponownie za chwilę.') }}</p>
+    {% if details %}
+    <pre class="ad-code-block" style="margin-top: var(--space-3); max-width: 500px; text-align: left; font-size: var(--font-size-xs, 0.75rem);">{{ details }}</pre>
+    {% endif %}
+    <div style="margin-top: var(--space-4); display: flex; gap: var(--space-2); justify-content: center;">
+        <button type="button" class="ad-btn ad-btn-primary ad-btn-sm" onclick="window.location.reload();">
+            {{ t('Odśwież stronę') }}
+        </button>
+        <a href="{{ url_for('dashboard.index') }}" class="ad-btn ad-btn-ghost ad-btn-sm">
+            {{ t('Dashboard') }}
+        </a>
+    </div>
+</div>

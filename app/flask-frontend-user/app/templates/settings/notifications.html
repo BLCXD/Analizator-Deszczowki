@@ -1,0 +1,49 @@
+<div class="settings-content">
+    <div style="margin-bottom: var(--space-4);">
+        <h2 style="font-size: var(--font-size-heading-3, 1.5rem); margin-bottom: 4px;">{{ t('Centrum powiadomień') }}</h2>
+        <p class="ad-text-secondary ad-text-sm">{{ t('Konfiguracja kanałów dostarczania alertów o jakości wody') }}</p>
+    </div>
+
+    <form class="settings-form">
+        <h4 style="font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-secondary, #B0BEC5); margin-bottom: var(--space-3);">{{ t('Kanały powiadomień') }}</h4>
+
+        <div style="display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-4);">
+            <div class="ad-card" style="padding: var(--space-3) var(--space-4); background: rgba(255,255,255,0.02);">
+                <label style="display: flex; align-items: center; gap: var(--space-3); cursor: pointer;">
+                    <input type="checkbox" id="email_notifications" name="email_notifications" value="true" checked style="accent-color: var(--color-accent, #E49D22); width: 18px; height: 18px;">
+                    <div>
+                        <span style="font-weight: 500; color: var(--color-text-primary, #D4F4FF);">{{ t('Wiadomości e-mail') }}</span>
+                        <p class="ad-text-secondary ad-text-sm" style="margin: 2px 0 0 0;">{{ t('Otrzymuj raporty dobowe i natychmiastowe alerty krytyczne') }}</p>
+                    </div>
+                </label>
+            </div>
+
+            <div class="ad-card" style="padding: var(--space-3) var(--space-4); background: rgba(255,255,255,0.02);">
+                <label style="display: flex; align-items: center; gap: var(--space-3); cursor: pointer;">
+                    <input type="checkbox" id="push_notifications" name="push_notifications" value="true" style="accent-color: var(--color-accent, #E49D22); width: 18px; height: 18px;">
+                    <div>
+                        <span style="font-weight: 500; color: var(--color-text-primary, #D4F4FF);">{{ t('Powiadomienia przeglądarkowe (Web Push)') }}</span>
+                        <p class="ad-text-secondary ad-text-sm" style="margin: 2px 0 0 0;">{{ t('Natychmiastowe toasty w trakcie pracy w dashboardzie') }}</p>
+                    </div>
+                </label>
+            </div>
+        </div>
+
+        <h4 style="font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-secondary, #B0BEC5); margin-bottom: var(--space-3);">{{ t('Zdarzenia wyzwalające') }}</h4>
+
+        <div style="display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-5);">
+            <label style="display: flex; align-items: center; gap: var(--space-3); cursor: pointer; padding: 6px 0;">
+                <input type="checkbox" id="notify_anomalies" name="notify_anomalies" value="true" checked style="accent-color: var(--color-accent, #E49D22); width: 16px; height: 16px;">
+                <span class="ad-text-primary ad-text-sm">{{ t('Przekroczenie normy pH (&lt;6.5 lub &gt;8.5) lub wysoka mętność') }}</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: var(--space-3); cursor: pointer; padding: 6px 0;">
+                <input type="checkbox" id="notify_device_offline" name="notify_device_offline" value="true" checked style="accent-color: var(--color-accent, #E49D22); width: 16px; height: 16px;">
+                <span class="ad-text-primary ad-text-sm">{{ t('Utrata sygnału lub brak synchronizacji ze stacją') }}</span>
+            </label>
+        </div>
+
+        <div style="display: flex; gap: var(--space-2);">
+            <button type="submit" class="ad-btn ad-btn-primary">{{ t('Zapisz ustawienia powiadomień') }}</button>
+        </div>
+    </form>
+</div>

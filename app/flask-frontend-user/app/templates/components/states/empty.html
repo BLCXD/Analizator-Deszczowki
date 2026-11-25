@@ -1,0 +1,16 @@
+<div class="ad-empty-state">
+    <div class="ad-empty-state-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+            <line x1="8" y1="21" x2="16" y2="21"></line>
+            <line x1="12" y1="17" x2="12" y2="21"></line>
+        </svg>
+    </div>
+    <h3 class="ad-empty-state-title">{{ t('Brak danych do wyświetlenia') }}</h3>
+    <p class="ad-empty-state-text">{{ t(empty_message or 'Nie znaleziono żadnych danych pomiarowych dla wybranych kryteriów.') }}</p>
+    <div style="margin-top: var(--space-4);">
+        <a href="{{ url_for('dashboard.index') }}" class="ad-btn ad-btn-secondary ad-btn-sm">
+            {{ t('Wróć do Dashboardu') }}
+        </a>
+    </div>
+</div>

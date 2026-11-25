@@ -1,0 +1,96 @@
+<div class="settings-content">
+    <div style="margin-bottom: var(--space-4);">
+        <h2 style="font-size: var(--font-size-heading-3, 1.5rem); margin-bottom: 4px;">{{ t('Profil użytkownika') }}</h2>
+        <p class="ad-text-secondary ad-text-sm">{{ t('Zarządzaj danymi osobowymi oraz poświadczeniami logowania') }}</p>
+    </div>
+
+    <form action="{{ url_for('settings.update_profile') }}" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ session.get('_csrf_token', '') }}">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin-bottom: var(--space-3);">
+            <div class="ad-form-group">
+                <label for="first_name" class="ad-label">{{ t('Imię') }}</label>
+                <input type="text" class="ad-input" id="first_name" name="first_name" value="{{ current_user.get('first_name', '') }}" placeholder="{{ t('Jan') }}" maxlength="100" required>
+            </div>
+            <div class="ad-form-group">
+                <label for="last_name" class="ad-label">{{ t('Nazwisko') }}</label>
+                <input type="text" class="ad-input" id="last_name" name="last_name" value="{{ current_user.get('last_name', '') }}" placeholder="{{ t('Kowalski') }}" maxlength="100" required>
+            </div>
+        </div>
+
+        <div class="ad-form-group" style="margin-bottom: var(--space-3);">
+            <label for="email" class="ad-label">{{ t('Adres e-mail') }}</label>
+            <input type="email" class="ad-input" id="email" name="email" value="{{ current_user.get('email', session.get('username', '')) }}" readonly style="opacity: 0.7; cursor: not-allowed;">
+        </div>
+
+        <div class="ad-form-group" style="margin-bottom: var(--space-4);">
+            <label for="phone" class="ad-label">{{ t('Numer telefonu (opcjonalnie)') }}</label>
+            <input type="tel" class="ad-input" id="phone" name="phone" value="{{ current_user.get('phone', '') }}" placeholder="+48 123 456 789" maxlength="32">
+        </div>
+
+        <div style="border-top: 1px solid var(--ad-border-light, rgba(255,255,255,0.06)); padding-top: var(--space-4); margin-top: var(--space-4); margin-bottom: var(--space-4);">
+            <h4 style="font-size: 1rem; margin-bottom: var(--space-3);">{{ t('Zmiana hasła') }}</h4>
+            <div class="ad-form-group" style="margin-bottom: var(--space-3);">
+                <label for="current_password" class="ad-label">{{ t('Obecne hasło') }}</label>
+                <input type="password" class="ad-input" id="current_password" name="current_password" placeholder="{{ t('Wpisz obecne hasło') }}">
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3);">
+                <div class="ad-form-group">
+                    <label for="new_password" class="ad-label">{{ t('Nowe hasło') }}</label>
+                <input type="password" class="ad-input" id="new_password" name="new_password" minlength="12" maxlength="72" placeholder="{{ t('Minimum 12 znaków') }}">
+                </div>
+                <div class="ad-form-group">
+                    <label for="confirm_password" class="ad-label">{{ t('Powtórz nowe hasło') }}</label>
+                    <input type="password" class="ad-input" id="confirm_password" name="confirm_password" placeholder="{{ t('Powtórz hasło') }}">
+                </div>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: var(--space-2); margin-top: var(--space-5);">
+            <button type="submit" class="ad-btn ad-btn-primary">{{ t('Zapisz zmiany') }}</button>
+            <button type="reset" class="ad-btn ad-btn-ghost">{{ t('Resetuj') }}</button>
+        </div>
+    </form>
+
+    <form id="delete-account-form" action="{{ url_for('settings.delete_account') }}" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ session.get('_csrf_token', '') }}">
+        <div style="margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--ad-border-light, rgba(255,255,255,0.06));">
+            <h4 style="font-size: 1rem; margin-bottom: var(--space-3);">{{ t('Usuń konto') }}</h4>
+            <p class="ad-text-secondary ad-text-sm">{{ t('Usunięcie konta jest nieodwracalne. Wszystkie Twoje dane, urządzenia i pomiary zostaną usunięte.') }}</p>
+            <button type="button" class="ad-btn ad-btn-ghost ad-btn--danger" id="delete-account-btn">{{ t('Usuń swoje konto') }}</button>
+        </div>
+    </form>
+</div>
+
+<script>
+document.getElementById('delete-account-btn').addEventListener('click', function() {
+    if (!window.confirm({{ t('Czy na pewno chcesz usunąć swoje konto?') | tojson }})) return;
+    const btn = this;
+    btn.disabled = true;
+    const form = document.getElementById('delete-account-form');
+    const formData = new FormData(form);
+    fetch(form.action, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify(Object.fromEntries(formData)),
+    })
+    .then(res => {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json().catch(() => ({}));
+    })
+    .then(() => {
+        if (window.AD && window.AD.Toast) {
+            window.AD.Toast.show({{ t('Konto zostało usunięte. Zostałeś wylogowany.') | tojson }}, 'success');
+        }
+        setTimeout(() => { window.location.href = '{{ url_for("auth.login") }}'; }, 800);
+    })
+    .catch(error => {
+        btn.disabled = false;
+        const msg = {{ t('Nie udało się usunąć konta: ') | tojson }} + (error.message || 'błąd serwera');
+        if (window.AD && window.AD.Toast) {
+            window.AD.Toast.show(msg, 'error');
+        } else {
+            alert(msg);
+        }
+    });
+});
+</script>

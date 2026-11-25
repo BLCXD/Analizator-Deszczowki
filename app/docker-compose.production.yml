@@ -1,0 +1,109 @@
+services:
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  migrate:
+    build: ./backend
+    environment:
+      APP_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+
+  smtp:
+    build: ./smtp
+    restart: unless-stopped
+    secrets:
+      - smtp2go_sasl_passwd
+    volumes:
+      - smtp_queue:/var/spool/postfix
+    networks:
+      - smtp-private
+    healthcheck:
+      test: ["CMD-SHELL", "postfix status"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  backend:
+    build: ./backend
+    env_file:
+      - .env.mail
+      - .env
+    environment:
+      APP_ENV: production
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      smtp:
+        condition: service_healthy
+    networks:
+      - default
+      - smtp-private
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  frontend:
+    build: ./flask-frontend-user
+    environment:
+      FLASK_ENV: production
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+      WTF_CSRF_SECRET_KEY: ${WTF_CSRF_SECRET_KEY:?Set WTF_CSRF_SECRET_KEY in .env}
+      API_BASE_URL: http://backend:8000
+      WS_URL: wss://${API_DOMAIN}/api/v1/measurements/ws
+      SESSION_DB_PATH: /data/flask-sessions.sqlite
+      RATE_LIMIT_DB_PATH: /data/rate-limits.sqlite
+      SESSION_COOKIE_SECURE: "true"
+      ENABLE_MOCK_SIMULATOR: "false"
+    ports:
+      - "127.0.0.1:5000:5000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - frontend_sessions:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/_health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+secrets:
+  smtp2go_sasl_passwd:
+    file: ./.secrets/smtp2go_sasl_passwd
+
+volumes:
+  postgres_data:
+  frontend_sessions:
+  caddy_data:
+  caddy_config:
+  smtp_queue:
+
+networks:
+  smtp-private:
+    internal: false

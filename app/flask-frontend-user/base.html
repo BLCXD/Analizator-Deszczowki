@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Analizator Deszczówki{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+</head>
+<body>
+    <div class="ad-app">
+        <aside class="ad-sidebar">
+            <div class="ad-sidebar-logo">
+                <div class="ad-sidebar-logo-icon">
+
+                </div>
+                <div>
+                    <div class="ad-sidebar-logo-text">Analizator Deszczówki</div>
+                    <div class="ad-sidebar-logo-subtitle">System monitoringu</div>
+                </div>
+            </div>
+
+            <nav class="ad-sidebar-nav">
+                <div class="ad-sidebar-section-label">Nawigacja</div>
+                <a href="{{ url_for('dashboard.index') }}" class="ad-nav-link {% if request.endpoint == 'dashboard.index' %}ad-nav-link--active{% endif %}">
+                    <span class="ad-nav-link-icon"></span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="{{ url_for('devices.index') }}" class="ad-nav-link {% if request.endpoint == 'devices.index' %}ad-nav-link--active{% endif %}">
+                    <span class="ad-nav-link-icon"></span>
+                    <span>Urządzenia</span>
+                </a>
+                <a href="{{ url_for('measurements.index') }}" class="ad-nav-link {% if request.endpoint == 'measurements.index' %}ad-nav-link--active{% endif %}">
+                    <span class="ad-nav-link-icon"></span>
+                    <span>Pomiary</span>
+                </a>
+                <a href="{{ url_for('analytics.index') }}" class="ad-nav-link {% if request.endpoint == 'analytics.index' %}ad-nav-link--active{% endif %}">
+                    <span class="ad-nav-link-icon"></span>
+                    <span>Analiza</span>
+                </a>
+                <a href="{{ url_for('settings.index') }}" class="ad-nav-link {% if request.endpoint == 'settings.index' %}ad-nav-link--active{% endif %}">
+                    <span class="ad-nav-link-icon"></span>
+                    <span>Ustawienia</span>
+                </a>
+                <a href="{{ url_for('auth.logout') }}" class="ad-nav-link">
+                    <span class="ad-nav-link-icon"></span>
+                    <span>Wyloguj</span>
+                </a>
+            </nav>
+        </aside>
+
+        <main class="ad-main">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

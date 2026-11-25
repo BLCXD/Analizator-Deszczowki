@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Devices</title>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+<body>
+    <h1>Debug Devices Page</h1>
+    <div id="debug-output">Initializing...</div>
+    <div id="devices-table">Table container</div>
+
+    <script>
+        console.log('Debug script starting');
+        document.getElementById('debug-output').innerHTML = 'Script loaded';
+
+        fetch('/devices/api/list', {
+            credentials: 'include'
+        })
+        .then(response => {
+            console.log('Response status:', response.status);
+            document.getElementById('debug-output').innerHTML += '<br>Status: ' + response.status;
+            return response.json();
+        })
+        .then(data => {
+            console.log('Data received:', data);
+            document.getElementById('debug-output').innerHTML += '<br>Data: ' + JSON.stringify(data);
+
+            const container = document.getElementById('devices-table');
+            if (data.devices && data.devices.length > 0) {
+                container.innerHTML = '<h2>Devices Found:</h2><pre>' + JSON.stringify(data.devices, null, 2) + '</pre>';
+            } else {
+                container.innerHTML = '<p>No devices found</p>';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('debug-output').innerHTML += '<br>Error: ' + error.message;
+        });
+    </script>
+</body>
+</html>

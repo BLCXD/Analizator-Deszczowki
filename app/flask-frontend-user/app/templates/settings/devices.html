@@ -1,0 +1,47 @@
+<div class="settings-content">
+    <div style="margin-bottom: var(--space-4);">
+        <h2 style="font-size: var(--font-size-heading-3, 1.5rem); margin-bottom: 4px;">{{ t('Preferencje urządzeń') }}</h2>
+        <p class="ad-text-secondary ad-text-sm">{{ t('Konfiguracja automatycznego wykrywania stacji i interwałów odpytywania') }}</p>
+    </div>
+
+    <div class="ad-alert ad-alert-info" style="margin-bottom: var(--space-4);">
+        <div class="ad-alert-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+        </div>
+        <span class="ad-alert-message">
+            {{ t('Zarządzanie poszczególnymi stacjami IoT znajduje się w zakładce') }}
+            <a href="{{ url_for('devices.index') }}" style="color: var(--color-accent, #E49D22); font-weight: 600;">{{ t('Urządzenia') }}</a>.
+        </span>
+    </div>
+
+    <form class="settings-form">
+        <div class="ad-card" style="padding: var(--space-3) var(--space-4); margin-bottom: var(--space-3); background: rgba(255,255,255,0.02);">
+            <label style="display: flex; align-items: center; gap: var(--space-3); cursor: pointer;">
+                <input type="checkbox" id="auto_add_devices" name="auto_add_devices" value="true" checked style="accent-color: var(--color-accent, #E49D22); width: 18px; height: 18px;">
+                <div>
+                    <span style="font-weight: var(--font-weight-medium, 500); color: var(--color-text-primary, #D4F4FF);">{{ t('Automatyczne parowanie stacji') }}</span>
+                    <p class="ad-text-secondary ad-text-sm" style="margin: 2px 0 0 0;">{{ t('Automatycznie dodawaj zweryfikowane urządzenia Raspberry Agent / ESP32') }}</p>
+                </div>
+            </label>
+        </div>
+
+        <div class="ad-card" style="padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); background: rgba(255,255,255,0.02);">
+            <label style="display: flex; align-items: center; gap: var(--space-3); cursor: pointer;">
+                <input type="checkbox" id="device_notifications" name="device_notifications" value="true" checked style="accent-color: var(--color-accent, #E49D22); width: 18px; height: 18px;">
+                <div>
+                    <span style="font-weight: var(--font-weight-medium, 500); color: var(--color-text-primary, #D4F4FF);">{{ t('Monitoruj status offline') }}</span>
+                    <p class="ad-text-secondary ad-text-sm" style="margin: 2px 0 0 0;">{{ t('Generuj alert w przypadku braku odczytów przez ponad 10 minut') }}</p>
+                </div>
+            </label>
+        </div>
+
+        <div class="ad-form-group" style="margin-bottom: var(--space-4);">
+            <label for="device_refresh_interval" class="ad-label">{{ t('Częstotliwość odświeżania telemetrii (sekundy)') }}</label>
+            <input type="number" class="ad-input" id="device_refresh_interval" name="device_refresh_interval" min="5" max="3600" value="30">
+        </div>
+
+        <div style="display: flex; gap: var(--space-2); margin-top: var(--space-5);">
+            <button type="submit" class="ad-btn ad-btn-primary">{{ t('Zapisz ustawienia urządzeń') }}</button>
+        </div>
+    </form>
+</div>
