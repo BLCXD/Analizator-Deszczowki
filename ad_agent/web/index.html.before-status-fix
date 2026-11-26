@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Stacja AD — stan połączenia</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; color: #18323d; background: #f1f6f5; }
+    body { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { margin: 0 0 6px; font-size: clamp(1.5rem, 5vw, 2rem); }
+    .intro { margin: 0 0 24px; color: #4e6872; }
+    .card { background: white; border: 1px solid #d9e5e4; border-radius: 14px; padding: 18px; margin: 14px 0; box-shadow: 0 4px 16px #17333b0d; }
+    .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .state { display: inline-flex; align-items: center; gap: 8px; font-weight: 650; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: #9aa; }
+    .ok .dot { background: #16834b; } .bad .dot { background: #bd4b3d; }
+    .muted { color: #58717a; font-size: .92rem; }
+    .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 14px; }
+    .metric { background: #f4f8f7; border-radius: 10px; padding: 12px; }
+    .metric small { display: block; color: #58717a; } .metric strong { display: block; margin-top: 4px; font-size: 1.2rem; }
+    #notice { color: #8c4e00; }
+    @media (max-width: 420px) { body { padding: 18px 12px 32px; } .card { padding: 14px; } }
+  </style>
+</head>
+<body>
+  <h1>Twoja stacja AD</h1>
+  <p class="intro">Lokalny podgląd stacji. Dane synchronizują się z Twoim kontem AD, gdy backend jest dostępny.</p>
+  <p><a href="/logout">Wyloguj</a></p>
+  <section class="card"><div class="row"><strong>Połączenie LTE</strong><span id="lte" class="state"><i class="dot"></i><span>Sprawdzam…</span></span></div><p class="muted">Wersja agenta: <span id="version">—</span> · Firmware ESP32: <span id="firmware">—</span></p><p class="muted">Ostatnia synchronizacja: <span id="sync">—</span></p></section>
+  <p id="notice" role="status" hidden>Nie można pobrać aktualnego stanu. Spróbuję ponownie.</p>
+  <section class="card" aria-labelledby="pi-title">
+    <div class="row"><strong id="pi-title">Raspberry Pi → konto AD</strong><span id="backend" class="state"><i class="dot"></i><span>Sprawdzam…</span></span></div>
+    <p class="muted">Odczyty zapisane lokalnie: <strong id="queued">—</strong></p>
+  </section>
+  <section id="sensors" aria-label="Czujniki"></section>
+  <script>
+    const labels = { temperature: ['Temperatura', '°C'], water_quality_ph: ['pH', ''], ec: ['Przewodność', 'µS/cm'], water_quality_turbidity: ['Mętność', 'NTU'], rainfall_mm: ['Opad łącznie', 'mm'] };
+    const fmt = value => Number(value).toLocaleString('pl-PL', { maximumFractionDigits: 2 });
+    async function refresh() {
+      try {
+        const response = await fetch('/api/local-status', { cache: 'no-store' });
+        if (!response.ok) throw new Error('status');
+        const data = await response.json();
+        document.getElementById('notice').hidden = true;
+        document.getElementById('queued').textContent = data.queued_measurements;
+        document.getElementById('version').textContent = data.agent_version || 'nieznana';
+        document.getElementById('firmware').textContent = data.firmware_version || 'niezgłaszana';
+        document.getElementById('sync').textContent = data.last_sync ? new Date(data.last_sync).toLocaleString('pl-PL') : 'brak potwierdzonej synchronizacji';
+        const lte = document.getElementById('lte');
+        lte.className = `state ${data.lte_connected ? 'ok' : 'bad'}`;
+        lte.lastElementChild.textContent = data.lte_connected ? 'Połączono' : 'Brak połączenia';
+        const backend = document.getElementById('backend');
+        const connected = data.backend_connected === true;
+        backend.className = `state ${data.backend_connected === null ? '' : connected ? 'ok' : 'bad'}`;
+        backend.lastElementChild.textContent = data.backend_connected === null ? 'Oczekuje na pierwszy test' : connected ? 'Połączono' : 'Brak połączenia — zapiszę lokalnie';
+        const root = document.getElementById('sensors');
+        if (!data.sensors.length) {
+          root.innerHTML = '<div class="card"><h2>Oczekuję na ESP32</h2><p class="muted">Włącz czujnik i połącz go z siecią Wi‑Fi Raspberry Pi. Po pierwszym odczycie pokażę go tutaj.</p></div>';
+          return;
+        }
+        root.replaceChildren(...data.sensors.map(sensor => {
+          const card = document.createElement('article'); card.className = 'card';
+          const row = document.createElement('div'); row.className = 'row';
+          const name = document.createElement('strong'); name.textContent = `Czujnik ${sensor.sensor_id}`;
+          const state = document.createElement('span'); state.className = `state ${sensor.connected ? 'ok' : 'bad'}`;
+          const dot = document.createElement('i'); dot.className = 'dot';
+          const text = document.createElement('span'); text.textContent = sensor.connected ? 'Połączono' : 'Brak sygnału';
+          state.append(dot, text); row.append(name, state); card.append(row);
+          const seen = document.createElement('p'); seen.className = 'muted'; seen.textContent = `Ostatni odczyt: ${new Date(sensor.last_seen).toLocaleString('pl-PL')}`; card.append(seen);
+          const metrics = document.createElement('div'); metrics.className = 'metrics';
+          for (const [key, value] of Object.entries(sensor.latest)) {
+            const metric = document.createElement('div'); metric.className = 'metric';
+            const label = document.createElement('small'); label.textContent = labels[key]?.[0] || key;
+            const number = document.createElement('strong'); number.textContent = `${fmt(value)} ${labels[key]?.[1] || ''}`.trim();
+            metric.append(label, number); metrics.append(metric);
+          }
+          card.append(metrics); return card;
+        }));
+      } catch (_) { document.getElementById('notice').hidden = false; }
+    }
+    refresh(); setInterval(refresh, 3000);
+  </script>
+</body>
+</html>

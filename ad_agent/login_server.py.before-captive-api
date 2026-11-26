@@ -1,0 +1,350 @@
+"""
+Local login page for Analizator Deszczówki.
+
+Serves a login form on port 8000 (https://baza.deszczowka.io) that authenticates
+the user against the existing AD backend API (/api/v1/auth/login) and, on
+success, redirects the browser to the user's dashboard at app.deszczowka.io.
+
+Security properties (per project requirements):
+  * No visible pairing codes, QR, manual tokens or additional accounts.
+  * No plaintext password storage: the password is never written to disk or logs.
+  * No credentials in logs: only status codes and generic messages are logged.
+  * The backend JWT is kept in a signed, expiring HttpOnly cookie and cleared on logout.
+  * If the backend is unreachable (LTE down), the login form still loads and the
+    user gets a clear error instead of a crash.
+"""
+
+from __future__ import annotations
+
+import base64
+import hashlib
+import hmac
+import json
+import logging
+import os
+import secrets
+import threading
+from datetime import datetime, timedelta, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from typing import Callable, Optional
+from urllib.parse import urlsplit, urlencode
+
+import requests
+from http.cookies import SimpleCookie
+try:
+    from .claim_proof import make_claim_payload, claim_established
+except ImportError:
+    from claim_proof import make_claim_payload, claim_established
+
+logger = logging.getLogger("ad_login")
+
+LOGIN_HTML = Path(__file__).with_name("web") / "login.html"
+COOKIE_NAME = "ad_session"
+COOKIE_MAX_AGE_SECONDS = 30 * 60
+DASHBOARD_URL = os.getenv("AD_DASHBOARD_URL", "https://app.deszczowka.io").rstrip("/")
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class LoginServer:
+    """Tiny HTTP server that proxies login to the AD backend and issues a session cookie."""
+
+    def __init__(
+        self,
+        backend_url: str,
+        host: str = "0.0.0.0",
+        port: int = 8000,
+        session_secret: Optional[str] = None,
+        dashboard_url: Optional[str] = None,
+        device_id: str = "",
+        device_secret_path: Optional[str] = None,
+        status_provider=None,
+    ):
+        if not backend_url:
+            raise ValueError("BACKEND_URL is required")
+        self.backend_url = backend_url.rstrip("/")
+        self.host = host
+        self.port = port
+        # Session cookie signing key: never logged, never persisted to disk unless provided via env.
+        secret = session_secret or os.getenv("AD_LOGIN_SESSION_SECRET") or secrets.token_urlsafe(48)
+        self.session_secret = secret.encode()
+        self.dashboard_url = (dashboard_url or DASHBOARD_URL).rstrip("/")
+        self.device_id = device_id
+        self.status_provider = status_provider
+        self.device_secret_path = Path(device_secret_path or os.getenv("DEVICE_SECRET_PATH", "/var/lib/ad-agent/device-secret"))
+        self.claim_nonce = secrets.token_urlsafe(32)
+        self.secure_cookie = os.getenv("AD_SECURE_COOKIE", "true").lower() == "true"
+        self.server = ThreadingHTTPServer(("127.0.0.1" if self.secure_cookie else host, port), self._make_handler())
+        self.thread: Optional[threading.Thread] = None
+        self._html: Optional[bytes] = None
+        self._load_html()
+
+    # ------------------------------------------------------------------ setup
+
+    def _load_html(self) -> None:
+        try:
+            self._html = LOGIN_HTML.read_bytes()
+        except OSError:
+            logger.warning("Login page template not found at %s; using built-in fallback", LOGIN_HTML)
+            self._html = self._fallback_html().encode()
+
+    @staticmethod
+    def _fallback_html() -> str:
+        return (
+            "<!doctype html><html lang=\"pl\"><head><meta charset=\"utf-8\"><title>Logowanie — AD</title></head>"
+            "<body><h1>Logowanie — Analizator Deszczówki</h1>"
+            "<p id=\"msg\">Ładowanie formularza...</p>"
+            "<script>fetch('/login.html').then(r=>r.text()).then(t=>{document.body.innerHTML=t}).catch(()=>{})</script>"
+            "</body></html>"
+        )
+
+    # ---------------------------------------------------------------- routing
+
+    def _make_handler(self) -> Callable[..., BaseHTTPRequestHandler]:
+        server = self
+
+        class Handler(BaseHTTPRequestHandler):
+            server_version = "ADLoginServer"
+
+            def log_message(self, fmt: str, *args) -> None:
+                # Never log request bodies (they may contain passwords).
+                logger.info("Login request: %s", fmt % args)
+
+            def _send(self, status: int, payload: bytes, content_type: str, headers=None) -> None:
+                self.send_response(status)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(payload)))
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.send_header("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'")
+                self.send_header("Referrer-Policy", "no-referrer")
+                self.send_header("X-Frame-Options", "DENY")
+                self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+                for key, value in (headers or {}).items():
+                    self.send_header(key, value)
+                self.end_headers()
+                self.wfile.write(payload)
+
+            def _redirect(self, location: str, cookie: Optional[str] = None) -> None:
+                headers = {"Location": location}
+                if cookie:
+                    headers["Set-Cookie"] = cookie
+                self._send(302, b"", "text/html; charset=utf-8", headers=headers)
+
+            def _set_session_cookie(self, token: str) -> str:
+                expires = _now() + timedelta(seconds=COOKIE_MAX_AGE_SECONDS)
+                value = server._sign_session(token)
+                cookie = (
+                    f"{COOKIE_NAME}={value}; Path=/; HttpOnly; SameSite=Lax; "
+                    f"Expires={expires.strftime('%a, %d %b %Y %H:%M:%S GMT')}; Max-Age={COOKIE_MAX_AGE_SECONDS}" + ("; Secure" if server.secure_cookie else "")
+                )
+                return cookie
+
+            def _clear_session_cookie(self) -> str:
+                return f"{COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax" + ("; Secure" if server.secure_cookie else "") + "; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT"
+
+            def _read_body(self) -> Optional[dict]:
+                try:
+                    length = int(self.headers.get("Content-Length", "0"))
+                except ValueError:
+                    return None
+                if length < 1 or length > 8192:
+                    return None
+                try:
+                    return json.loads(self.rfile.read(length))
+                except (ValueError, json.JSONDecodeError):
+                    return None
+
+            # ------------------------------------------------------------ GET
+
+            def do_GET(self) -> None:
+                path = urlsplit(self.path).path
+
+                if path in ("/", "/login", "/login.html"):
+                    if not server._html:
+                        self._send(503, b"Login page unavailable", "text/plain; charset=utf-8")
+                        return
+                    self._send(200, server._html, "text/html; charset=utf-8")
+                    return
+
+                if path == "/api/status":
+                    self._send_json(200, {"claim_state": "UNCLAIMED" if not server._device_secret() else "CLAIMED"})
+                    return
+
+                if path == "/dashboard":
+                    if not server._read_session(self.headers.get("Cookie", "")):
+                        self._redirect("/login")
+                        return
+                    try:
+                        self._send(200, (Path(__file__).with_name("web") / "index.html").read_bytes(), "text/html; charset=utf-8")
+                    except OSError:
+                        self._send(503, b"Panel niedostepny", "text/plain; charset=utf-8")
+                    return
+
+                if path == "/api/local-status":
+                    if not server._read_session(self.headers.get("Cookie", "")):
+                        self._send_json(401, {"error": "unauthorized"})
+                        return
+                    self._send_json(200, server.status_provider() if server.status_provider else {})
+                    return
+
+                if path == "/api/session":
+                    token = server._read_session(self.headers.get("Cookie", ""))
+                    if not token:
+                        self._send_json(401, {"error": "unauthorized"})
+                        return
+                    try:
+                        response = requests.get(f"{server.backend_url}/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}, timeout=10)
+                        body = response.json()
+                    except (requests.RequestException, ValueError):
+                        self._send_json(502, {"error": "backend_unavailable"})
+                        return
+                    if response.status_code != 200:
+                        self._send_json(401, {"error": "session_expired"}, headers={"Set-Cookie": self._clear_session_cookie()})
+                        return
+                    self._send_json(200, {"user": body, "claim_state": "UNCLAIMED" if not server._device_secret() else "CLAIMED"})
+                    return
+
+                if path == "/logout":
+                    self._redirect("/login", cookie=self._clear_session_cookie())
+                    return
+
+                self._send(404, b"Not found", "text/plain; charset=utf-8")
+
+            # ------------------------------------------------------------ POST
+
+            def do_POST(self) -> None:
+                path = urlsplit(self.path).path
+
+                if path == "/api/login":
+                    body = self._read_body()
+                    if not body or not body.get("email") or not body.get("password"):
+                        self._send_json(400, {"error": "Adres e-mail i hasło są wymagane"})
+                        return
+
+                    # Never log the password.
+                    status, data = server._proxy_login(body)
+
+                    if status == 200 and data.get("access_token"):
+                        token = data["access_token"]
+                        cookie = self._set_session_cookie(token)
+                        self._send_json(200, {"ok": True}, headers={"Set-Cookie": cookie})
+                        return
+
+                    detail = data.get("detail", "Niepoprawny adres e-mail lub hasło.")
+                    status = 401 if status == 401 else status
+                    self._send_json(status if status in (400, 401, 429, 502) else 502, {"error": detail})
+                    return
+
+                if path == "/api/claim":
+                    token = server._read_session(self.headers.get("Cookie", ""))
+                    if not token:
+                        self._send_json(403, {"error": "claim_not_authorized"})
+                        return
+                    try:
+                        proof, supplied = make_claim_payload(server.device_id)
+                        response = requests.post(f"{server.backend_url}/api/v1/devices/claim", json={"device_id": server.device_id, "claim_proof": proof}, headers={"Authorization": f"Bearer {token}", "X-Device-Claim-Proof": supplied}, timeout=10)
+                        result = response.json()
+                    except (requests.RequestException, ValueError):
+                        self._send_json(502, {"error": "backend_unavailable"})
+                        return
+                    if response.status_code != 201 or not result.get("device_secret"):
+                        logger.warning("Device claim rejected by backend (HTTP %s)", response.status_code)
+                        backend_detail = result.get("detail")
+                        message = backend_detail[:240] if isinstance(backend_detail, str) else ""
+                        if not message:
+                            message = f"API odrzuciło przypisanie (HTTP {response.status_code})"
+                        status = response.status_code if response.status_code in (401, 403, 409, 429) else 502
+                        self._send_json(status, {"error": message})
+                        return
+                    try:
+                        server._save_device_secret(result["device_secret"])
+                        claim_established()
+                    except OSError:
+                        self._send_json(500, {"error": "credential_storage_failed"})
+                        return
+                    self._send_json(200, {"ok": True}, headers={"Set-Cookie": self._set_session_cookie(token)})
+                    return
+
+                self._send_json(404, {"error": "not_found"})
+
+            # ------------------------------------------------------------ helpers
+
+            def _send_json(self, status: int, payload: dict, headers=None) -> None:
+                self._send(status, json.dumps(payload, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8", headers=headers)
+
+        return Handler
+
+    # ---------------------------------------------------------------- backend proxy
+
+    def _sign_session(self, token: str) -> str:
+        payload = f"{int(_now().timestamp()) + COOKIE_MAX_AGE_SECONDS}.{token}"
+        digest = hmac.new(self.session_secret, payload.encode(), hashlib.sha256).digest()
+        return base64.urlsafe_b64encode(payload.encode() + b"." + digest).rstrip(b"=").decode()
+
+    def _read_session(self, cookie_header: str) -> Optional[str]:
+        cookie = SimpleCookie()
+        try:
+            cookie.load(cookie_header)
+            value = cookie[COOKIE_NAME].value if COOKIE_NAME in cookie else ""
+            decoded = base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+            signature_size = hashlib.sha256().digest_size
+            separator = len(decoded) - signature_size - 1
+            if separator < 1 or decoded[separator:separator + 1] != b".":
+                return None
+            payload = decoded[:separator]
+            signature = decoded[separator + 1:]
+            expiry, token = payload.split(b".", 1)
+            expected = hmac.new(self.session_secret, payload, hashlib.sha256).digest()
+            if not hmac.compare_digest(signature, expected) or int(expiry) <= int(_now().timestamp()):
+                return None
+            return token.decode()
+        except (ValueError, TypeError, UnicodeDecodeError, KeyError):
+            return None
+
+    def _device_secret(self) -> str:
+        try:
+            return self.device_secret_path.read_text().strip()
+        except OSError:
+            return ""
+
+    def _save_device_secret(self, secret: str) -> None:
+        self.device_secret_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self.device_secret_path.with_suffix(".tmp")
+        temporary.write_text(secret + "\n")
+        os.chmod(temporary, 0o600)
+        os.replace(temporary, self.device_secret_path)
+
+    def _proxy_login(self, credentials: dict) -> tuple[int, dict]:
+        """Forward credentials to the backend /api/v1/auth/login. Returns (status, body)."""
+        try:
+            response = requests.post(
+                f"{self.backend_url}/api/v1/auth/login",
+                data={"username": credentials.get("email", ""), "password": credentials.get("password", "")},
+                headers={"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"},
+                timeout=10,
+            )
+            try:
+                body = response.json()
+            except ValueError:
+                body = {"detail": response.text or "Nieznana odpowiedź serwera"}
+            return response.status_code, body
+        except requests.exceptions.RequestException as exc:
+            logger.error("Backend unreachable during login: %s", exc)
+            return 502, {"detail": "Serwer AD jest chwilowo niedostępny (brak połączenia LTE?). Spróbuj ponownie za chwilę."}
+
+    # ------------------------------------------------------------------ lifecycle
+
+    def start(self) -> None:
+        self.thread = threading.Thread(target=self.server.serve_forever, name="ad-login-server", daemon=True)
+        self.thread.start()
+        logger.info("Local login app listening on %s:%d/", self.host, self.port)
+
+    def close(self) -> None:
+        self.server.shutdown()
+        self.server.server_close()
+        if self.thread and self.thread.is_alive():
+            self.thread.join(timeout=3)

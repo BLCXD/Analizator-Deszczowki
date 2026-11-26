@@ -1,0 +1,28 @@
+# Local configuration and secrets
+.secrets/
+.env
+.env.*
+!.env.example
+!.env.production.example
+!.env.mail.example
+
+# Python/runtime artifacts
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage*
+
+# Local data and logs
+*.db
+*.sqlite
+*.sqlite3
+*.log
+*.out
+cookies.txt
+
+# OS/editor files
+.DS_Store
+.vscode/
+.idea/

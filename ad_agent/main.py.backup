@@ -1,0 +1,143 @@
+"""
+Main entry point for the Raspberry Pi Agent
+Handles communication between Mock ESP32 and FastAPI backend
+"""
+
+import time
+import threading
+import signal
+import sys
+import os
+from datetime import datetime
+from typing import List
+
+from .config import *
+from .logger import setup_logger
+from .db import MeasurementQueueDB
+from .api_client import ADAPIClient
+from .measurements import MeasurementProcessor
+from .heartbeat import HeartbeatSender
+
+# Set up logger
+logger = setup_logger("ad_agent", LOG_LEVEL)
+
+
+class RaspberryPiAgent:
+    def __init__(self):
+        self.running = False
+        self.db = MeasurementQueueDB(DB_PATH)
+        self.api_client = ADAPIClient(BACKEND_URL, DEVICE_ID, DEVICE_SECRET)
+        self.measurement_processor = MeasurementProcessor(self.db, self.api_client)
+        self.heartbeat_sender = HeartbeatSender(self.db, self.api_client)
+
+        # Threads
+        self.sync_thread = None
+        self.heartbeat_thread = None
+
+        # Signal handlers for graceful shutdown
+        signal.signal(signal.SIGINT, self._signal_handler)
+        signal.signal(signal.SIGTERM, self._signal_handler)
+
+    def _signal_handler(self, signum, frame):
+        """Handle shutdown signals gracefully"""
+        logger.info(f"Received signal {signum}, shutting down...")
+        self.stop()
+
+    def start(self):
+        """Start the agent"""
+        logger.info("Starting Raspberry Pi Agent for Analizator Deszczówki")
+        logger.info(f"Agent ID: {AGENT_ID}")
+        logger.info(f"Backend URL: {BACKEND_URL}")
+        logger.info(f"Device ID: {DEVICE_ID}")
+
+        # Verify device credentials
+        if not self._verify_device():
+            logger.error("Device verification failed. Check device ID and secret.")
+            return False
+
+        self.running = True
+
+        # Start sync thread
+        self.sync_thread = threading.Thread(target=self._sync_loop, daemon=True)
+        self.sync_thread.start()
+
+        # Start heartbeat thread
+        self.heartbeat_thread = threading.Thread(target=self._heartbeat_loop, daemon=True)
+        self.heartbeat_thread.start()
+
+        logger.info("Agent started successfully")
+        return True
+
+    def stop(self):
+        """Stop the agent"""
+        logger.info("Stopping Raspberry Pi Agent...")
+        self.running = False
+
+        # Wait for threads to finish (with timeout)
+        if self.sync_thread and self.sync_thread.is_alive():
+            self.sync_thread.join(timeout=5)
+
+        if self.heartbeat_thread and self.heartbeat_thread.is_alive():
+            self.heartbeat_thread.join(timeout=5)
+
+        logger.info("Agent stopped")
+
+    def _verify_device(self) -> bool:
+        """Verify that the device credentials are valid"""
+        try:
+            device_info = self.api_client.get_device_info()
+            if device_info:
+                logger.info(f"Device verified: {device_info.get('device_id')} (ID: {device_info.get('id')})")
+                return True
+            else:
+                logger.error("Failed to verify device with backend")
+                return False
+        except Exception as e:
+            logger.error(f"Error verifying device: {e}")
+            return False
+
+    def _sync_loop(self):
+        """Main synchronization loop"""
+        logger.info(f"Starting sync loop (interval: {SYNC_INTERVAL}s)")
+
+        while self.running:
+            try:
+                self.measurement_processor.process_queue()
+                time.sleep(SYNC_INTERVAL)
+            except Exception as e:
+                logger.error(f"Error in sync loop: {e}")
+                time.sleep(SYNC_INTERVAL)  # Continue after error
+
+    def _heartbeat_loop(self):
+        """Heartbeat loop"""
+        logger.info(f"Starting heartbeat loop (interval: {HEARTBEAT_INTERVAL}s)")
+
+        while self.running:
+            try:
+                self.heartbeat_sender.send_heartbeat()
+                time.sleep(HEARTBEAT_INTERVAL)
+            except Exception as e:
+                logger.error(f"Error in heartbeat loop: {e}")
+                time.sleep(HEARTBEAT_INTERVAL)  # Continue after error
+
+
+def main():
+    """Main entry point"""
+    agent = RaspberryPiAgent()
+
+    if agent.start():
+        try:
+            # Keep main thread alive
+            while agent.running:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            logger.info("Received keyboard interrupt")
+        finally:
+            agent.stop()
+    else:
+        logger.error("Failed to start agent")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
