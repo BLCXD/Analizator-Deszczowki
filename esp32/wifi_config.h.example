@@ -1,0 +1,7 @@
+#pragma once
+
+#define AD_WIFI_SSID "Baza_AD"
+#define AD_WIFI_PASSWORD "naukolatek"
+#define AD_LOCAL_TOKEN "4635bee91a9399877f6b25ec2c662514c08dd3bf71759f96a3b98d4a5093ffc8"
+#define AD_GATEWAY_URL "http://127.0.0.1:8081/api/v1/readings"
+
